@@ -1,3 +1,33 @@
+
+# Make & compilation
+Makefile
+*.o
+*.a
+*.so
+*.dylib
+
+# compilation
+*.out
+*.bin
+*.err
+*.map
+**/*.out
+**/*.bin
+**/*.err
+**/*.map
+
+# Executables
+#*.exe
+
+# Ignore .DS_Store everywhere
+.DS_Store
+**/.DS_Store
+
+# Ignore all shell scripts
+#*.sh
+#**/*.sh
+
+# ignore CMake detritus
 CMakeLists.txt.user
 CMakeCache.txt
 CMakeFiles
