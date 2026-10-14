@@ -33,20 +33,20 @@ add_compile_options(
     # -zl               # Tiny model: .COM output, all segments unified (smallest)
 
     # === SIZE vs SPEED (pick ONE) ===
-    -os                 # Optimize for CODE SIZE
-    -ox                 # Enable extra optimizations (dead code elimination)
+    # -os                 # Optimize for CODE SIZE
+    # -ox                 # Enable extra optimizations (dead code elimination)
     -zp1                # Pack structs to 1-byte alignment (Critical for data size)
-    -fpi87              # Assume 8087 exists (removes software FP emulation stubs if any are pulled in)
-    # -ot               # Optimize for SPEED
-    # -od               # Disable optimizations (debugging)
+    # -fpi87              # Assume 8087 exists (removes software FP emulation stubs if any are pulled in)
+    # -ot                 # Optimize for SPEED
+    # -od                 # Disable optimizations (debugging)
 
     # === DEBUG/INFO ===
-    #-d0                # No debug info (smaller .obj + binary)
-    #-d1                # Line numbers only
+    # -d0                # No debug info (smaller .obj + binary)
+    # -d1                # Line numbers only
     -d2               # Full debug symbols
 
     # === STACK SAFETY ===
-    #-e0                 # No stack checking (saves ~20 bytes)
+    # -e0                 # No stack checking (saves ~20 bytes)
     -e1               # Minimal stack overflow check
 
     # === LANGUAGE COMPAT ===
@@ -54,12 +54,12 @@ add_compile_options(
     # (omit for pure C89, slightly smaller)
 
     # === WARNINGS ===
-    #-w1                 # Mild warnings (avoids 8086 false positives)
+    # -w1               # Mild warnings (avoids 8086 false positives)
     # -w0               # No warnings
-     -w2               # More warnings
+    -w2               # More warnings
 
     # === BUILD OUTPUT ===
-    #-zq                 # Quiet mode (cleaner output)
+    # -zq                 # Quiet mode (cleaner output)
     # (omit for verbose build log)
 )
 add_definitions(
@@ -73,23 +73,7 @@ endif()
 file(GLOB SOURCES
     CONFIGURE_DEPENDS
     *.c
-    ../doslib/bioslib/src/BIOS/*.c
-    ../doslib/src/DOS/*.c
-    ENV/*.c
-    LOG/*.c
-    LIB/*.c
-    MEM/*.c
-    FXP/*.c
-    FXP/VEC/*.c
-    MDA/*.c
-    CGA/*.c
-    CGA/HI/*.c
-    CGA/LO/*.c
-    EGA/*.c
-    HGA/*.c
-    VGA/*.c
-    SIM/*.c
-    TEST/*.c
+
 )
 
 # message(Source list="${SOURCES}")
