@@ -7,7 +7,7 @@
 typedef const char* sno_cursor_t;
 
 /**
- * The string view is [cursor, eof)
+ * The immutable string view is [cursor, eof)
  */
 typedef struct {
     sno_cursor_t begin;  // Current parsing position (cursor)

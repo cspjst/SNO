@@ -20,7 +20,7 @@
 /**
  * Test if a char is in a set of chars?
  */
-bool sno_char_in_set(char c, sno_view_t charset);
+bool sno_char_in_set(char c, sno_view_t v);
 
 /**
  * Test if a char is in a null terminated string?
@@ -32,9 +32,18 @@ bool sno_char_in_cstr(char c, const char* charset);
 /**
  * 1.3 Assignment
  * Bind null-terminated C string to parsing context
- * Returns a view spanning [cstring, first null terminator)
+ * Returns an immutable string view spanning [cstring, first null terminator)
  */
 sno_view_t sno_bind(const char* cstr);
+
+/**
+ * Unbind an immutable string view to a null terminated buffer
+ * Returning pointer to first char in the buffer
+ * @warn It is the caller's responsibility to ensure that
+ * buffer is large enough to hold the string view plus null terminator.
+ * Otherwise undefined behaviour.
+ */
+char* sno_unbind(sno_view_t v, char* buf);
 
 /**
  * 1.3.1 NULL
@@ -44,20 +53,36 @@ sno_view_t sno_null();
 
 /**
  * 1.3.4 Input and Output of Strings
+ * INPUT
  * Write a view to an output stream
+ * Returning the number of bytes written
+ * If bytes written < view size
+ * the error indicator for the stream is set,
+ * and errno set to indicate the error
  */
-bool sno_output(sno_view_t subject, FILE* stream);
+int sno_output(sno_view_t v, FILE* f);
 
 /**
- * 1.3.4 Input and Output of Strings
+ * OUTPUT
  * Read input into a cstr buffer and bind it to a view
+ * Returning a string view of the input buffer
+ * If the string is NULL
+ * the error indicator for the stream is set,
+ * and errno set to indicate the error
  */
-sno_view_t sno_input(char* buffer, FILE* stream);
+sno_view_t sno_input(char* buf, FILE* f);
+
+/**
+ * 1.10.1 Primitive Functions
+ * SIZE
+ * Returns length (number of characters) of the string view
+ */
+int sno_size(sno_view_t v);
 
 /**
  * 1.11 TRIM remove trailing whitespace as defined in sno_constants.h
  */
-bool sno_trim(sno_view_t subject);
+bool sno_trim(sno_view_t v);
 
 
 
