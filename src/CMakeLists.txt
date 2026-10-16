@@ -73,6 +73,7 @@ endif()
 file(GLOB SOURCES
     CONFIGURE_DEPENDS
     *.c
+    SNO/*.c
 
 )
 

@@ -39,11 +39,11 @@ sno_view_t sno_bind(const char* cstr);
 /**
  * Unbind an immutable string view to a null terminated buffer
  * Returning pointer to first char in the buffer
- * @warn It is the caller's responsibility to ensure that
- * buffer is large enough to hold the string view plus null terminator.
- * Otherwise undefined behaviour.
+ * sno_unbind(v, buf, size): copies at most size - 1 chars
+ * Always terminates when size > 0
+ * With size == 0 it writes nothing
  */
-char* sno_unbind(sno_view_t v, char* buf);
+char* sno_unbind(sno_view_t v, char* buf, size_t size);
 
 /**
  * 1.3.1 NULL
@@ -60,7 +60,7 @@ sno_view_t sno_null();
  * the error indicator for the stream is set,
  * and errno set to indicate the error
  */
-int sno_output(sno_view_t v, FILE* f);
+int sno_output(FILE* f, sno_view_t v);
 
 /**
  * OUTPUT
@@ -70,19 +70,19 @@ int sno_output(sno_view_t v, FILE* f);
  * the error indicator for the stream is set,
  * and errno set to indicate the error
  */
-sno_view_t sno_input(char* buf, FILE* f);
+sno_view_t sno_input(FILE* f, char* buf, size_t size);
 
 /**
  * 1.10.1 Primitive Functions
  * SIZE
  * Returns length (number of characters) of the string view
  */
-int sno_size(sno_view_t v);
+inline int sno_size(sno_view_t v) { return v.end - v.begin; }
 
 /**
- * 1.11 TRIM remove trailing whitespace as defined in sno_constants.h
+ * 1.11 TRIM remove trailing whitespace as defined by the isspace()
  */
-bool sno_trim(sno_view_t v);
+sno_view_t sno_trim(sno_view_t v);
 
 
 
