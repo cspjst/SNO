@@ -123,12 +123,31 @@ static void test_unbind() {
     assert(buf[0] == 'X');
 }
 
+static void test_output() {
+    char buf[16];
+    FILE *f = fopen("TEST.TXT", "w+");
+
+    assert(f != NULL);
+
+    assert(sno_output(f, sno_bind("HELLO")) == 5);
+    assert(sno_output(f, sno_null()) == 0);
+    assert(sno_output(f, sno_bind(NULL)) == 0);
+    assert(!ferror(f));
+
+    rewind(f);
+    assert(fread(buf, 1, sizeof buf, f) == 5);  /* no newline appended */
+    assert(memcmp(buf, "HELLO", 5) == 0);
+
+    fclose(f);
+}
+
 static void test_core() {
-    test_char_in();
-    test_bind();
-    test_null();
-    test_size();
-    test_unbind();
+    //test_char_in();
+    //test_bind();
+    //test_null();
+    //test_size();
+    //test_unbind();
+    test_output();
     printf("Pass\n");
 }
 

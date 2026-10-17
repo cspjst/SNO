@@ -46,4 +46,11 @@ int sno_output(FILE* f, sno_view_t v) {
     return p - v.begin;
 }
 
-sno_view_t sno_input(FILE* f, char* buf, size_t size) {}
+sno_view_t sno_input(FILE* f, char* buf, size_t size) {
+    if(!f || !buf || !size) return sno_null();
+    sno_view_t v;
+    v.begin = buf;
+    v.end = buf + size;
+    while (v.begin < v.end && (*buf++ = fgetc(f)) != EOF) v.begin++;
+    return v;
+}
