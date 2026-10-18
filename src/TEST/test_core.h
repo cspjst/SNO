@@ -90,12 +90,6 @@ static void test_size() {
     assert(sno_size(v) == 0);
 }
 
-/*
- * sno_unbind(v, buf, size): copies at most size - 1 chars and always
- * terminates when size > 0; with size == 0 it writes nothing and
- * returns NULL.
- * Every case checks the byte after the expected write is untouched.
- */
 static void test_unbind() {
     char buf[16];
     sno_view_t v = sno_bind("HELLO");
@@ -130,9 +124,9 @@ static void test_unbind() {
     sno_unbind(sno_null(), buf, sizeof buf);
     assert(buf[0] == '\0' && buf[1] == 'X');
 
-    memset(buf, 'X', sizeof buf);       /* failure: must not memcpy NULL */
-    sno_unbind(sno_fail(), buf, sizeof buf);
-    assert(buf[0] == '\0' && buf[1] == 'X');
+    memset(buf, 'X', sizeof buf);       /* failure: NULL, buf untouched */
+    assert(sno_unbind(sno_fail(), buf, sizeof buf) == NULL);
+    assert(buf[0] == 'X');
 }
 
 static void test_output() {
@@ -230,7 +224,7 @@ static void test_input() {
 
     fclose(f);
 }
-/*
+
 static void test_trim() {
     static const char s[] = "ABC  ";
     sno_view_t v;
@@ -262,7 +256,7 @@ static void test_trim() {
 
     assert(sno_failed(sno_trim(sno_fail())));   //failure propagates
 }
-*/
+
 
 static void test_char_in() {
     static const char bytes[] = { 'A', '\0', 'B' };
@@ -303,7 +297,7 @@ static void test_core() {
     test_unbind();
     test_output();
     test_input();
-    //test_trim();
+    test_trim();
     printf("Pass\n");
 }
 

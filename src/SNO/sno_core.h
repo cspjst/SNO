@@ -41,8 +41,8 @@ sno_view_t sno_bind(const char* cstr);
  * Copy a view into buf as a C string.
  * Copies at most size - 1 chars and always terminates with '\0'.
  * Returns buf, or NULL if size == 0 (nothing written).
- * A null string or failure view gives "".
- * Truncated if sno_size(v) > size - 1
+ * A null string gives "".
+ * Returns NULL, writing nothing, if size == 0 or v is a failure view.
  * @warn A NUL inside the view ends the C string early.
  */
 char* sno_unbind(sno_view_t v, char* buf, size_t size);
@@ -97,12 +97,14 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size);
  * Returns the length (number of characters) of the string view.
  * @warning A failure view has size 0 - test v.begin for failure.
  */
-static inline int sno_size(sno_view_t v) { return (int)(v.end - v.begin); }
+static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
 
 /**
  * 1.11 TRIM remove trailing whitespace as defined by the POSIX "C" locale: ' ' '\f' '\n' '\r' '\t' '\v'
  * @see sno_constants.h
  */
 sno_view_t sno_trim(sno_view_t v);
+
+
 
 #endif

@@ -1,10 +1,14 @@
-#include "sno_core.h"
 #include <stdio.h>
+
+#include "sno_core.h"
+#include "sno_types.h"
+#include "sno_constants.h"
 
 // 1.3.1
 static const char SNO_NULL_STRING[] = "";
 
 bool sno_char_in_set(char c, sno_view_t v) {
+    if(sno_failed(v)) return false;
     sno_cursor_t p = v.begin;
     while (p < v.end && *p != c) p++;
     return p != v.end;
@@ -26,7 +30,7 @@ sno_view_t sno_bind(const char* cstr) {
 }
 
 char* sno_unbind(sno_view_t v, char* buf, size_t size) {
-    if(!buf || !size) return NULL;
+    if(sno_failed(v) || !buf || !size) return NULL;
     char* p = buf;
     char* buf_end = p + size - 1;
     while(v.begin < v.end && p < buf_end) *p++ = *v.begin++;
@@ -47,7 +51,7 @@ sno_view_t sno_fail() {
 }
 
 int sno_output(FILE* f, sno_view_t v) {
-    if(!f) return 0;
+    if(!f || sno_failed(v)) return 0;
     sno_cursor_t p = v.begin;
     while(p < v.end && fputc((int)*p, f) != EOF) p++;
     return p - v.begin;
@@ -55,7 +59,6 @@ int sno_output(FILE* f, sno_view_t v) {
 
 sno_view_t sno_input(FILE* f, char* buf, size_t size) {
     if (!f || !buf || size < 2) return sno_fail();
-
     sno_view_t v;
     char* p = buf;
     int c = EOF;
@@ -71,5 +74,12 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size) {
     *p = '\0';
     v.begin = buf;
     v.end   = p;
+    return v;
+}
+
+sno_view_t sno_trim(sno_view_t v) {
+    if(sno_failed(v)) return v;
+    sno_cursor_t i = v.end - 1;
+    while(i >= v.begin && sno_char_in_cstr(*i--, SNO_POSIX_WHITESPACE)) v.end--;
     return v;
 }
