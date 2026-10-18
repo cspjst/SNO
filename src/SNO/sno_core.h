@@ -2,7 +2,7 @@
  * @author Jeremy Simon Thornton
  * @copyright Copyright (c) 2026 Jeremy Simon Thornton
  * @license MIT License — see LICENSE file or https://opensource.org/licenses/MIT
- * @version 0.1
+ * @version 0.2
  *
  * @brief SNOBOL4 Pattern Matching Library for C - Core Functions
  *
@@ -32,24 +32,41 @@ bool sno_char_in_cstr(char c, const char* charset);
 /**
  * 1.3 Assignment
  * Bind null-terminated C string to parsing context
- * Returns an immutable string view spanning [cstring, first null terminator)
+ * Returns a read-only C string view spanning [cstring, first null terminator)
+ * @note A view *never* includes a terminating '\0' - but may contain NUL bytes.
  */
 sno_view_t sno_bind(const char* cstr);
 
 /**
- * Unbind an immutable string view to a null terminated buffer
- * Returning pointer to first char in the buffer
- * sno_unbind(v, buf, size): copies at most size - 1 chars
- * Always terminates when size > 0
- * With size == 0 it writes nothing
+ * Copy a view into buf as a C string.
+ * Copies at most size - 1 chars and always terminates with '\0'.
+ * Returns buf, or NULL if size == 0 (nothing written).
+ * A null string or failure view gives "".
+ * Truncated if sno_size(v) > size - 1
+ * @warn A NUL inside the view ends the C string early.
  */
 char* sno_unbind(sno_view_t v, char* buf, size_t size);
 
 /**
- * 1.3.1 NULL
- * Make a null view "" size 0
+ * 1.3.1 NULL - SNOBOL's null string is a string of length zero.
+ * Return a valid *empty* view "" of size 0.
+ * Success, empty: begin != NULL, begin == end.
  */
 sno_view_t sno_null();
+
+/**
+ * 1.8 Flow Control - SNOBOL has conditional transfer on success or failure.
+ * A SNOBOL expression may yield the null string *or* fail, so a view must represent both outcomes.
+ * This is the *failure* view.
+ * Failure: begin == NULL, end == NULL.
+ */
+sno_view_t sno_fail();
+
+/**
+ * 1.8 Flow Control - test whether a view represents failure.
+ * Failure: begin == NULL, end == NULL.
+ */
+static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
 
 /**
  * 1.3.4 Input and Output of Strings
@@ -63,27 +80,29 @@ sno_view_t sno_null();
 int sno_output(FILE* f, sno_view_t v);
 
 /**
- * OUTPUT
- * Read input into a cstr buffer and bind it to a view
- * Returning a string view of the input buffer
- * If the string is NULL
- * the error indicator for the stream is set,
- * and errno set to indicate the error
+ * INPUT
+ * Read one line from f into buf, replacing '\n' with '\0'.
+ * Returns a view of the line, excluding the '\0'.
+ * Empty line returns a null string (size 0).
+ * A final line without '\n' is returned as a normal line.
+ * EOF before any character, or bad args (f or buf NULL, size < 2) returns a failure view.
+ * A line longer than size - 1 is truncated and the remainder is discarded.
+ * @note Text mode recommended as in binary mode '\r' is kept.
  */
 sno_view_t sno_input(FILE* f, char* buf, size_t size);
 
 /**
  * 1.10.1 Primitive Functions
  * SIZE
- * Returns length (number of characters) of the string view
+ * Returns the length (number of characters) of the string view.
+ * @warning A failure view has size 0 - test v.begin for failure.
  */
-inline int sno_size(sno_view_t v) { return v.end - v.begin; }
+static inline int sno_size(sno_view_t v) { return (int)(v.end - v.begin); }
 
 /**
- * 1.11 TRIM remove trailing whitespace as defined by the isspace()
+ * 1.11 TRIM remove trailing whitespace as defined by the POSIX "C" locale: ' ' '\f' '\n' '\r' '\t' '\v'
+ * @see sno_constants.h
  */
 sno_view_t sno_trim(sno_view_t v);
-
-
 
 #endif
