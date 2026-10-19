@@ -50,23 +50,10 @@ char* sno_unbind(sno_view_t v, char* buf, size_t size);
 /**
  * 1.3.1 NULL - SNOBOL's null string is a string of length zero.
  * Return a valid *empty* view "" of size 0.
- * Success, empty: begin != NULL, begin == end.
+ * Success, empty: begin == end.
+ * @see sno_fail()
  */
 sno_view_t sno_null();
-
-/**
- * 1.8 Flow Control - SNOBOL has conditional transfer on success or failure.
- * A SNOBOL expression may yield the null string *or* fail, so a view must represent both outcomes.
- * This is the *failure* view.
- * Failure: begin == NULL, end == NULL.
- */
-sno_view_t sno_fail();
-
-/**
- * 1.8 Flow Control - test whether a view represents failure.
- * Failure: begin == NULL, end == NULL.
- */
-static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
 
 /**
  * 1.3.4 Input and Output of Strings
@@ -92,15 +79,29 @@ int sno_output(FILE* f, sno_view_t v);
 sno_view_t sno_input(FILE* f, char* buf, size_t size);
 
 /**
- * 1.10.1 Primitive Functions
- * SIZE
+ * 1.8 Flow Control - SNOBOL has conditional transfer on success or failure.
+ * A SNOBOL expression may yield the null string *or* fail, so a view must represent both outcomes.
+ * This is the *failure* view.
+ * Failure: begin == NULL, end == NULL.
+ */
+sno_view_t sno_fail();
+
+/**
+ * 1.8 Flow Control - test whether a view represents failure.
+ * Failure: begin == NULL, end == NULL.
+ */
+static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
+
+/**
+ * 1.10.1 SIZE
  * Returns the length (number of characters) of the string view.
  * @warning A failure view has size 0 - test v.begin for failure.
  */
 static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
 
 /**
- * 1.11 TRIM remove trailing whitespace as defined by the POSIX "C" locale: ' ' '\f' '\n' '\r' '\t' '\v'
+ * 1.11 TRIM
+ * Removes trailing whitespace as defined by the POSIX C locale: ' ' '\f' '\n' '\r' '\t' '\v'
  * @see sno_constants.h
  */
 sno_view_t sno_trim(sno_view_t v);
