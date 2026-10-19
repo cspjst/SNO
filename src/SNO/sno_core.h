@@ -28,9 +28,10 @@ bool sno_char_in_set(char c, sno_view_t v);
 bool sno_char_in_cstr(char c, const char* charset);
 
 // Greenbook Sections:
+// Chapter 1 - Introduction to the SNOBOU Programming Language
 
 /**
- * 1.3 Assignment
+ * 1.1 Assignment Statements
  * Bind null-terminated C string to parsing context
  * Returns a read-only C string view spanning [cstring, first null terminator)
  * @note A view *never* includes a terminating '\0' - but may contain NUL bytes.
@@ -105,6 +106,18 @@ static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.en
  * @see sno_constants.h
  */
 sno_view_t sno_trim(sno_view_t v);
+
+// Chapter 3 - Primitive Functions, Predicates, and Operations
+
+/**
+ * 3.3.1 IDENT
+ * For the function call sno_ident(u, v) to succeed or for sno_differ(u, v) to fail,
+ * the values of the arguments, u and v, must be truly identical as identity by content.
+ * DIFFER is the complement of IDENT, except that both fail returning false when either argument is a failure view.
+ */
+bool sno_ident(sno_view_t u, sno_view_t v);
+
+bool sno_differ(sno_view_t u, sno_view_t v);
 
 
 

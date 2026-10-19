@@ -45,6 +45,36 @@ static void test_fail() {
     assert(sno_failed(v));
 }
 
+static void test_char_in() {
+    static const char bytes[] = { 'A', '\0', 'B' };
+    sno_view_t set = sno_bind("abc");
+    sno_view_t v;
+
+    assert(sno_char_in_set('a', set));          /* first */
+    assert(sno_char_in_set('c', set));          /* last */
+    assert(!sno_char_in_set('d', set));
+    assert(!sno_char_in_set('\0', set));        /* terminator not in view */
+    assert(!sno_char_in_set('a', sno_null()));  /* empty set */
+    assert(!sno_char_in_set('a', sno_fail()));
+
+    v.begin = bytes;                            /* views may hold NUL */
+    v.end = bytes + 3;
+    assert(sno_char_in_set('\0', v));
+    assert(sno_char_in_set('B', v));
+
+    v = sno_bind("\xA0\xFF");                   /* high-bit chars */
+    assert(sno_char_in_set('\xA0', v));
+    assert(sno_char_in_set('\xFF', v));
+
+    assert(sno_char_in_cstr('a', "abc"));
+    assert(sno_char_in_cstr('c', "abc"));
+    assert(!sno_char_in_cstr('d', "abc"));
+    assert(!sno_char_in_cstr('\0', "abc"));     /* the strchr trap */
+    assert(!sno_char_in_cstr('a', ""));
+    assert(!sno_char_in_cstr('a', NULL));
+    assert(sno_char_in_cstr('\xFF', "\xA0\xFF"));
+}
+
 static void test_bind() {
     static const char s[] = "TEST";
     static const char e[] = "";
@@ -257,35 +287,61 @@ static void test_trim() {
     assert(sno_failed(sno_trim(sno_fail())));   //failure propagates
 }
 
+static void test_ident_differ() {
+    static const char a[] = "BCD";
+    static const char b[] = "xBCDx";
+    static const char z1[] = { 'A', '\0', 'B' };
+    static const char z2[] = { 'A', '\0', 'C' };
+    sno_view_t bcd = sno_bind(a);
+    sno_view_t mid, v, w;
 
-static void test_char_in() {
-    static const char bytes[] = { 'A', '\0', 'B' };
-    sno_view_t set = sno_bind("abc");
-    sno_view_t v;
+    mid.begin = b + 1;                  /* "BCD" in another buffer */
+    mid.end = b + 4;
 
-    assert(sno_char_in_set('a', set));          /* first */
-    assert(sno_char_in_set('c', set));          /* last */
-    assert(!sno_char_in_set('d', set));
-    assert(!sno_char_in_set('\0', set));        /* terminator not in view */
-    assert(!sno_char_in_set('a', sno_null()));  /* empty set */
-    assert(!sno_char_in_set('a', sno_fail()));
+    assert(sno_ident(bcd, bcd));        /* same view */
+    assert(sno_ident(bcd, mid));        /* same content, different pointers */
+    assert(sno_ident(mid, bcd));        /* symmetric */
+    assert(!sno_differ(bcd, mid));
 
-    v.begin = bytes;                            /* views may hold NUL */
-    v.end = bytes + 3;
-    assert(sno_char_in_set('\0', v));
-    assert(sno_char_in_set('B', v));
+    assert(!sno_ident(sno_bind("PUSH"), sno_bind("PUSHI")));   /* prefix */
+    assert(!sno_ident(sno_bind("PUSHI"), sno_bind("PUSH")));
+    assert(sno_differ(sno_bind("PUSH"), sno_bind("PUSHI")));
 
-    v = sno_bind("\xA0\xFF");                   /* high-bit chars */
-    assert(sno_char_in_set('\xA0', v));
-    assert(sno_char_in_set('\xFF', v));
+    assert(!sno_ident(sno_bind("ACD"), bcd));   /* differs first char */
+    assert(!sno_ident(sno_bind("BCE"), bcd));   /* differs last char */
+    assert(!sno_ident(sno_bind("bcd"), bcd));   /* case sensitive */
+    assert(sno_differ(sno_bind("bcd"), bcd));
 
-    assert(sno_char_in_cstr('a', "abc"));
-    assert(sno_char_in_cstr('c', "abc"));
-    assert(!sno_char_in_cstr('d', "abc"));
-    assert(!sno_char_in_cstr('\0', "abc"));     /* the strchr trap */
-    assert(!sno_char_in_cstr('a', ""));
-    assert(!sno_char_in_cstr('a', NULL));
-    assert(sno_char_in_cstr('\xFF', "\xA0\xFF"));
+    /* every null string is identical to every other */
+    assert(sno_ident(sno_null(), sno_bind("")));
+    assert(sno_ident(sno_bind(""), sno_null()));
+    v.begin = v.end = b + 2;            /* empty view mid-buffer */
+    assert(sno_ident(v, sno_null()));
+    assert(!sno_differ(v, sno_null()));
+    assert(!sno_ident(sno_null(), bcd));        /* DIFFER(X): X non-null */
+    assert(sno_differ(bcd, sno_null()));
+
+    /* views may hold NUL: compared like any other byte */
+    v.begin = z1; v.end = z1 + 3;
+    w.begin = z2; w.end = z2 + 3;
+    assert(!sno_ident(v, w));
+    assert(sno_differ(v, w));
+    w.end = z2 + 2;                     /* "A\0" vs "A\0" */
+    v.end = z1 + 2;
+    assert(sno_ident(v, w));
+
+    assert(sno_ident(sno_bind("\xA0\xFF"), sno_bind("\xA0\xFF")));  /* high bit */
+    assert(!sno_ident(sno_bind("\xA0"), sno_bind("\xFF")));
+
+    /* failure: neither succeeds (statement would fail in SNOBOL) */
+    assert(!sno_ident(sno_fail(), bcd));
+    assert(!sno_ident(bcd, sno_fail()));
+    assert(!sno_ident(sno_fail(), sno_fail()));
+    assert(sno_differ(sno_fail(), bcd));
+    assert(sno_differ(bcd, sno_fail()));
+    assert(sno_differ(sno_fail(), sno_fail()));
+    assert(!sno_ident(sno_fail(), sno_null()));    /* failure is not "" */
+    assert(sno_differ(sno_fail(), sno_null()));
 }
 
 static void test_core() {
@@ -298,6 +354,7 @@ static void test_core() {
     test_output();
     test_input();
     test_trim();
+    test_ident_differ();
     printf("Pass\n");
 }
 

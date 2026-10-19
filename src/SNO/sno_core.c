@@ -83,3 +83,12 @@ sno_view_t sno_trim(sno_view_t v) {
     while(i >= v.begin && sno_char_in_cstr(*i--, SNO_POSIX_WHITESPACE)) v.end--;
     return v;
 }
+
+bool sno_ident(sno_view_t u, sno_view_t v) {
+    if(sno_failed(u) || sno_failed(v) || sno_size(u) != sno_size(v)) return false;
+    sno_cursor_t p = u.begin, q = v.begin;
+    while (p < u.end && *p == *q) p++, q++;
+    return p == u.end;
+}
+
+bool sno_differ(sno_view_t u, sno_view_t v) { return !sno_ident(u, v); }
