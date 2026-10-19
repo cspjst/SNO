@@ -344,6 +344,129 @@ static void test_ident_differ() {
     assert(sno_differ(sno_fail(), sno_null()));
 }
 
+static int view_same(sno_view_t a, sno_view_t b) {
+    return a.begin == b.begin && a.end == b.end;
+}
+
+static void test_any_notany() {
+    static const char z[] = { 'A', '\0', 'B' };
+    sno_view_t s, before, set;
+
+    /* ANY: match advances by one */
+    s = sno_bind("EXIT");
+    before = s;
+    assert(sno_any(&s, sno_bind("AEIOU")));
+    assert(s.begin == before.begin + 1);
+    assert(s.end == before.end);
+
+    /* ANY: only the first char counts */
+    s = sno_bind("XA");
+    before = s;
+    assert(!sno_any(&s, sno_bind("A")));
+    assert(view_same(s, before));
+
+    /* ANY: order and duplicates irrelevant */
+    s = sno_bind("E");
+    assert(sno_any(&s, sno_bind("UOIEA")));
+    s = sno_bind("E");
+    assert(sno_any(&s, sno_bind("AAEEAA")));
+
+    /* ANY: walks the subject, then fails at end */
+    s = sno_bind("AEI");
+    set = sno_bind("AEIOU");
+    assert(sno_any(&s, set));
+    assert(sno_any(&s, set));
+    assert(sno_any(&s, set));
+    assert(sno_size(s) == 0 && !sno_failed(s));
+    before = s;
+    assert(!sno_any(&s, set));          /* cursor at end */
+    assert(view_same(s, before));
+
+    /* ANY: empty subject and null set fail */
+    s = sno_null();
+    before = s;
+    assert(!sno_any(&s, sno_bind("A")));
+    assert(view_same(s, before));
+    s = sno_bind("A");
+    before = s;
+    assert(!sno_any(&s, sno_null()));   /* Green Book: set must be nonnull */
+    assert(view_same(s, before));
+
+    /* ANY: failure views and NULL subject pointer */
+    s = sno_bind("A");
+    before = s;
+    assert(!sno_any(&s, sno_fail()));
+    assert(view_same(s, before));
+    s = sno_fail();
+    assert(!sno_any(&s, sno_bind("A")));
+    assert(sno_failed(s));
+    assert(!sno_any(NULL, sno_bind("A")));
+
+    /* ANY: NUL and high-bit chars are ordinary members */
+    set.begin = z;
+    set.end = z + 3;                    /* set { 'A', '\0', 'B' } */
+    s.begin = z + 1;
+    s.end = z + 3;                      /* subject "\0B" */
+    assert(sno_any(&s, set));
+    assert(s.begin == z + 2);
+    s = sno_bind("\xFF");
+    assert(sno_any(&s, sno_bind("\xA0\xFF")));
+
+    /* NOTANY: match advances by one */
+    s = sno_bind("XA");
+    before = s;
+    assert(sno_notany(&s, sno_bind("AEIOU")));
+    assert(s.begin == before.begin + 1);
+    assert(s.end == before.end);
+
+    /* NOTANY: first char in set fails */
+    s = sno_bind("AX");
+    before = s;
+    assert(!sno_notany(&s, sno_bind("AEIOU")));
+    assert(view_same(s, before));
+
+    /* NOTANY: fails at end - no char to match */
+    s = sno_null();
+    before = s;
+    assert(!sno_notany(&s, sno_bind("A")));
+    assert(view_same(s, before));
+
+    /* NOTANY: null set fails rather than matching anything */
+    s = sno_bind("X");
+    before = s;
+    assert(!sno_notany(&s, sno_null()));
+    assert(view_same(s, before));
+
+    /* NOTANY: Green Book example - STRUCTURE == CERSTU */
+    s = sno_bind("A");
+    assert(sno_notany(&s, sno_bind("STRUCTURE")));
+    s = sno_bind("A");
+    assert(sno_notany(&s, sno_bind("CERSTU")));
+    s = sno_bind("T");
+    assert(!sno_notany(&s, sno_bind("STRUCTURE")));
+    s = sno_bind("T");
+    assert(!sno_notany(&s, sno_bind("CERSTU")));
+
+    /* NOTANY: failure views and NULL subject pointer */
+    s = sno_bind("X");
+    before = s;
+    assert(!sno_notany(&s, sno_fail()));
+    assert(view_same(s, before));
+    s = sno_fail();
+    assert(!sno_notany(&s, sno_bind("A")));
+    assert(sno_failed(s));
+    assert(!sno_notany(NULL, sno_bind("A")));
+
+    /* NOTANY: NUL is an ordinary member */
+    set.begin = z + 1;
+    set.end = z + 2;                    /* set { '\0' } */
+    s.begin = z + 1;
+    s.end = z + 3;                      /* subject "\0B" */
+    assert(!sno_notany(&s, set));
+    s.begin = z + 2;                    /* subject "B" */
+    assert(sno_notany(&s, set));
+}
+
 static void test_core() {
     test_fail();
     test_char_in();

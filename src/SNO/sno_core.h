@@ -107,6 +107,35 @@ static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.en
  */
 sno_view_t sno_trim(sno_view_t v);
 
+// Chapter 2 - Pattern Matching
+
+/**
+ * 2.10 ANY
+ * Match *one* character of the subject that DOES appear in the target set.
+ * @note The order and duplicates in the set are irrelevant.
+ *
+ * On success modifies the subject - cursor begin advances by one.
+ * Returns true:
+ * + The subject is non-empty and its *first* character is in the set.
+ *
+ * On failure leaves the subject unchanged.
+ * Returns false:
+ *  + first character not in set.
+ *  + subject is empty ie cursor at end.
+ *  + set is the null string (Green Book: argument must be nonnull).
+ *  + subject pointer is NULL.
+ *  + The subject or set is a failure view.
+ */
+bool sno_any(sno_view_t* subject, sno_view_t set);
+
+/**
+ * 2.10 NOTANY
+ * As sno_any, but matches *one* character that does NOT appear in set.
+ * Fails at end of subject - there is no character to match.
+ * Fails if set is the null string, rather than matching anything.
+ */
+bool sno_notany(sno_view_t* subject, sno_view_t set);
+
 // Chapter 3 - Primitive Functions, Predicates, and Operations
 
 /**
