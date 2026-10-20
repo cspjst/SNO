@@ -1,0 +1,18 @@
+/**
+ * 2.10 ANY
+ * Match one character of the subject that appears in the target set.
+ * @note The order and duplicates in the set are irrelevant.
+ * @pre set is not the null string (Green Book: argument must be
+ *      nonnull) - asserted.
+ *
+ * On success modifies the subject - cursor begin advances by one.
+ * Returns true:
+ * + The subject is non-empty and its *first* character is in the set.
+ *
+ * On failure leaves the subject unchanged.
+ * Returns false:
+ *  + first character not in set.
+ *  + subject is empty ie cursor at end.
+ *  + the subject pointer is NULL.
+ *  + The subject or set is a failure view.
+ */

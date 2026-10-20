@@ -1,8 +1,9 @@
-#include <stdio.h>
-
 #include "sno_core.h"
 #include "sno_types.h"
 #include "sno_constants.h"
+
+#include <stdio.h>
+#include <assert.h>
 
 // 1.3.1
 static const char SNO_NULL_STRING[] = "";
@@ -84,6 +85,26 @@ sno_view_t sno_trim(sno_view_t v) {
     return v;
 }
 
+bool sno_any(sno_view_t* u, sno_view_t v) {
+    assert(u);
+    if (sno_failed(*u) || sno_failed(v)) return false;
+    assert(!sno_is_null(v));
+    if (sno_is_null(*u)) return false;
+    if (!sno_char_in_set(*u->begin, v)) return false;
+    u->begin++;
+    return true;
+}
+
+bool sno_notany(sno_view_t* u, sno_view_t v) {
+    assert(u);
+    if (sno_failed(*u) || sno_failed(v)) return false;
+    assert(!sno_is_null(v));
+    if (sno_is_null(*u)) return false;
+    if (sno_char_in_set(*u->begin, v)) return false;
+    u->begin++;
+    return true;
+}
+
 bool sno_ident(sno_view_t u, sno_view_t v) {
     if(sno_failed(u) || sno_failed(v) || sno_size(u) != sno_size(v)) return false;
     sno_cursor_t p = u.begin, q = v.begin;
@@ -91,4 +112,11 @@ bool sno_ident(sno_view_t u, sno_view_t v) {
     return p == u.end;
 }
 
-bool sno_differ(sno_view_t u, sno_view_t v) { return !sno_ident(u, v); }
+/*
+ The spec says both functions return false when either argument is a failure view.
+ So sno_differ has to check for failure itself before negating anything.
+ Negating sno_ident is only correct once you know both views are real.
+ */
+bool sno_differ(sno_view_t u, sno_view_t v) {
+
+}

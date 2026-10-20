@@ -28,7 +28,7 @@ bool sno_char_in_set(char c, sno_view_t v);
 bool sno_char_in_cstr(char c, const char* charset);
 
 // Greenbook Sections:
-// Chapter 1 - Introduction to the SNOBOU Programming Language
+// Chapter 1 - Introduction to the SNOBOL Programming Language
 
 /**
  * 1.1 Assignment Statements
@@ -41,7 +41,6 @@ sno_view_t sno_bind(const char* cstr);
 /**
  * Copy a view into buf as a C string.
  * Copies at most size - 1 chars and always terminates with '\0'.
- * Returns buf, or NULL if size == 0 (nothing written).
  * A null string gives "".
  * Returns NULL, writing nothing, if size == 0 or v is a failure view.
  * @warn A NUL inside the view ends the C string early.
@@ -57,8 +56,13 @@ char* sno_unbind(sno_view_t v, char* buf, size_t size);
 sno_view_t sno_null();
 
 /**
+ * 1.3.1 NULL - test whether a view is the null string.
+ * Null string: begin != NULL, begin == end. A failure view is not null.
+ */
+static inline bool sno_is_null(sno_view_t v) { return v.begin != NULL && v.begin == v.end; }
+/**
  * 1.3.4 Input and Output of Strings
- * INPUT
+ * OUTPUT
  * Write a view to an output stream
  * Returning the number of bytes written
  * If bytes written < view size
@@ -96,7 +100,7 @@ static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
 /**
  * 1.10.1 SIZE
  * Returns the length (number of characters) of the string view.
- * @warning A failure view has size 0 - test v.begin for failure.
+ * @warning A failure view has size 0.
  */
 static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
 
@@ -111,8 +115,9 @@ sno_view_t sno_trim(sno_view_t v);
 
 /**
  * 2.10 ANY
- * Match *one* character of the subject that DOES appear in the target set.
+ * Match *one* character of the subject (u) that DOES appear in the target set (v).
  * @note The order and duplicates in the set are irrelevant.
+ * @warn Greenbook: arguement must be nonnull else error program stop
  *
  * On success modifies the subject - cursor begin advances by one.
  * Returns true:
@@ -122,19 +127,16 @@ sno_view_t sno_trim(sno_view_t v);
  * Returns false:
  *  + first character not in set.
  *  + subject is empty ie cursor at end.
- *  + set is the null string (Green Book: argument must be nonnull).
  *  + subject pointer is NULL.
  *  + The subject or set is a failure view.
  */
-bool sno_any(sno_view_t* subject, sno_view_t set);
+bool sno_any(sno_view_t* u, sno_view_t v);
 
 /**
  * 2.10 NOTANY
- * As sno_any, but matches *one* character that does NOT appear in set.
- * Fails at end of subject - there is no character to match.
- * Fails if set is the null string, rather than matching anything.
+ * As sno_any, but matches *one* character that does NOT appear in set (v).
  */
-bool sno_notany(sno_view_t* subject, sno_view_t set);
+bool sno_notany(sno_view_t* u, sno_view_t v);
 
 // Chapter 3 - Primitive Functions, Predicates, and Operations
 
