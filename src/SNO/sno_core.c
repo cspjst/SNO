@@ -16,7 +16,7 @@ bool sno_char_in_set(char c, sno_view_t v) {
 }
 
 bool sno_char_in_cstr(char c, const char* cstr)  {
-    if(!cstr) return false;
+    assert(cstr);
     sno_cursor_t p = cstr;
     while (*p && *p != c) p++;
     return *p != '\0';
@@ -31,7 +31,8 @@ sno_view_t sno_bind(const char* cstr) {
 }
 
 char* sno_unbind(sno_view_t v, char* buf, size_t size) {
-    if(sno_failed(v) || !buf || !size) return NULL;
+    assert(buf);
+    if(sno_failed(v) || !size) return NULL;
     char* p = buf;
     char* buf_end = p + size - 1;
     while(v.begin < v.end && p < buf_end) *p++ = *v.begin++;
@@ -52,14 +53,15 @@ sno_view_t sno_fail() {
 }
 
 int sno_output(FILE* f, sno_view_t v) {
-    if(!f || sno_failed(v)) return 0;
+    assert(f);
+    if(sno_failed(v)) return 0;
     sno_cursor_t p = v.begin;
     while(p < v.end && fputc((int)*p, f) != EOF) p++;
     return p - v.begin;
 }
 
 sno_view_t sno_input(FILE* f, char* buf, size_t size) {
-    if (!f || !buf || size < 2) return sno_fail();
+    assert(f && buf && size > 1);
     sno_view_t v;
     char* p = buf;
     int c = EOF;
@@ -67,10 +69,12 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size) {
     while ((size_t)(p - buf) < size - 1 && (c = fgetc(f)) != EOF && c != '\n')
         *p++ = (char)c;
 
-    if (c == EOF && p == buf)   return sno_fail();                  // EOF before any chars
-
-    if ((size_t)(p - buf) == size - 1)
-        while ((c = fgetc(f)) != EOF && c != '\n');                 // truncate & discard rest of line loop
+    assert(c != EOF || !ferror(f));                             // read error, not EOF
+    if (c == EOF && p == buf) return sno_fail();                // EOF before any chars
+    if ((size_t)(p - buf) == size - 1) {
+        while ((c = fgetc(f)) != EOF && c != '\n');             // truncate & discard rest of line
+        assert(c != EOF || !ferror(f));                         // read error while discarding
+    }
 
     *p = '\0';
     v.begin = buf;

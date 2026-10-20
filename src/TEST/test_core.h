@@ -482,6 +482,27 @@ static void test_ident_differ() {
     assert(!sno_differ(sno_fail(), sno_null()));
 }
 
+// Precondition violations: each must halt with an assert.
+// Uncomment ONE line at a time; a pass is an abort, not "Pass".
+static void test_sno_halt() {
+    char buf[8];
+    sno_view_t s = sno_bind("X");
+
+    // sno_char_in_cstr('a', NULL);                        // charset NULL
+    // sno_unbind(s, NULL, sizeof buf);                    // buf NULL
+    // sno_unbind(sno_fail(), NULL, sizeof buf);           // buf NULL beats failure
+    // sno_output(NULL, s);                                // f NULL (error 12)
+    // sno_input(NULL, buf, sizeof buf);                   // f NULL (error 12)
+    // sno_input(tmpfile(), NULL, sizeof buf);             // buf NULL
+    // sno_input(tmpfile(), buf, 1);                       // size < 2
+    // sno_input(tmpfile(), buf, 0);                       // size < 2
+    // sno_input(fopen("halt.tmp", "w"), buf, sizeof buf); // read error (error 11)
+    // sno_any(NULL, sno_bind("A"));                       // subject pointer NULL
+    // sno_any(&s, sno_null());                            // null set (error 4)
+    // sno_notany(NULL, sno_bind("A"));                    // subject pointer NULL
+    // sno_notany(&s, sno_null());                         // null set (error 4)
+}
+
 static void test_core() {
     test_fail_null();
     test_char_in();
@@ -493,6 +514,8 @@ static void test_core() {
     test_trim();
     test_any_notany();
     test_ident_differ();
+
+    //test_sno_halt();
     printf("Pass\n");
 }
 
