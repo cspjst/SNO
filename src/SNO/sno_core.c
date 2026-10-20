@@ -112,11 +112,10 @@ bool sno_ident(sno_view_t u, sno_view_t v) {
     return p == u.end;
 }
 
-/*
- The spec says both functions return false when either argument is a failure view.
- So sno_differ has to check for failure itself before negating anything.
- Negating sno_ident is only correct once you know both views are real.
- */
 bool sno_differ(sno_view_t u, sno_view_t v) {
-
+    if(sno_failed(u) || sno_failed(v)) return false;    // sno_differ has to check for failure itself before negating anything
+    if(sno_size(u) != sno_size(v)) return true;
+    sno_cursor_t p = u.begin, q = v.begin;
+    while (p < u.end && *p == *q) p++, q++;
+    return p != u.end;
 }
