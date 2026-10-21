@@ -42,8 +42,9 @@ bool sno_char_in_cstr(char c, const char* charset);
 // Greenbook Sections:
 // Chapter 1 - Introduction to the SNOBOL Programming Language
 
+// 1.1 Assignment Statements
+
 /**
- * 1.1 Assignment Statements
  * BIND null-terminated C string to parsing context.
  *
  * Success: returns a read-only C string view spanning [cstring, first null terminator).
@@ -56,7 +57,8 @@ bool sno_char_in_cstr(char c, const char* charset);
 sno_view_t sno_bind(const char* cstr);
 
 /**
- * UNBIND Copy a view into buf as a C string.
+ * UNBIND
+ * Copy a view into buf as a C string.
  * @pre     buf != NULL
  *
  * Success: returns buf; copies at most size - 1 chars and always terminates with '\0'.
@@ -65,10 +67,12 @@ sno_view_t sno_bind(const char* cstr);
  *  + size == 0.
  *  + v is a failure view.
  *
- * @note    A NUL inside the view ends the C string early.
+ * @warning A NUL inside the view ends the C string early.
  * @note    Truncated if sno_size(v) > size - 1; check before calling if it matters.
  */
 char* sno_unbind(sno_view_t v, char* buf, size_t size);
+
+// 1.3 Strings
 
 /**
  * 1.3.1 NULL SNOBOL's null string is a string of length zero.
@@ -145,9 +149,10 @@ sno_view_t sno_fail();
 static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
 
 /**
- * 1.10.1 SIZE Returns the length (number of characters) of the string view.
+ * 1.10.1 SIZE
+ * Returns the length (number of characters) of the string view.
  *
- * @note    A failure view has size 0 - use sno_failed() to tell it from the null string.
+ * @warning A failure view has size 0 - use sno_failed() to tell it from the null string.
  */
 static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
 
