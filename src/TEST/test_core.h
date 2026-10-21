@@ -306,58 +306,62 @@ static void test_trim() {
 
 /*
  * 2.10 ANY and NOTANY: match exactly one character.
- * Success advances begin by one and leaves end alone;
- * failure leaves the subject unchanged.
+ * Success returns the one-character match [old cursor, new cursor),
+ * advances begin by one and leaves end alone.
+ * Failure returns sno_fail() and leaves the subject unchanged.
  * Preconditions: subject pointer != NULL; set not the null string
  * (Green Book error 4, NULL STRING IN ILLEGAL CONTEXT).
  */
 static void test_any_notany() {
     static const char z[] = { 'A', '\0', 'B' };
-    sno_view_t s, before, set;
+    sno_view_t s, before, set, m;
 
-    // ANY: match advances by one
+    // ANY: match is the one char, cursor advances by one
     s = sno_bind("EXIT");
     before = s;
-    assert(sno_any(&s, sno_bind("AEIOU")));
+    m = sno_any(&s, sno_bind("AEIOU"));
+    assert(view_eq(m, "E"));
+    assert(m.begin == before.begin);            // a view into the subject
+    assert(m.end == s.begin);                   // ends at the new cursor
     assert(s.begin == before.begin + 1);
     assert(s.end == before.end);
 
     // ANY: only the first char counts
     s = sno_bind("XA");
     before = s;
-    assert(!sno_any(&s, sno_bind("A")));
+    assert(sno_failed(sno_any(&s, sno_bind("A"))));
     assert(view_same(s, before));
 
     // ANY: order and duplicates irrelevant
     s = sno_bind("E");
-    assert(sno_any(&s, sno_bind("UOIEA")));
+    assert(view_eq(sno_any(&s, sno_bind("UOIEA")), "E"));
     s = sno_bind("E");
-    assert(sno_any(&s, sno_bind("AAEEAA")));
+    assert(view_eq(sno_any(&s, sno_bind("AAEEAA")), "E"));
 
     // ANY: walks the subject, then fails at end
     s = sno_bind("AEI");
     set = sno_bind("AEIOU");
-    assert(sno_any(&s, set));
-    assert(sno_any(&s, set));
-    assert(sno_any(&s, set));
+    assert(view_eq(sno_any(&s, set), "A"));
+    assert(view_eq(sno_any(&s, set), "E"));
+    assert(view_eq(sno_any(&s, set), "I"));
     assert(sno_is_null(s));
     before = s;
-    assert(!sno_any(&s, set));                  // cursor at end
+    assert(sno_failed(sno_any(&s, set)));       // cursor at end
     assert(view_same(s, before));
 
     // ANY: empty subject fails
     s = sno_null();
     before = s;
-    assert(!sno_any(&s, sno_bind("A")));
+    assert(sno_failed(sno_any(&s, sno_bind("A"))));
     assert(view_same(s, before));
 
     // ANY: failure views propagate
     s = sno_bind("A");
     before = s;
-    assert(!sno_any(&s, sno_fail()));
+    assert(sno_failed(sno_any(&s, sno_fail())));
     assert(view_same(s, before));
     s = sno_fail();
-    assert(!sno_any(&s, sno_bind("A")));
+    assert(sno_failed(sno_any(&s, sno_bind("A"))));
     assert(sno_failed(s));
 
     // ANY: NUL and high-bit chars are ordinary members
@@ -365,47 +369,50 @@ static void test_any_notany() {
     set.end = z + 3;                            // set { 'A', '\0', 'B' }
     s.begin = z + 1;
     s.end = z + 3;                              // subject "\0B"
-    assert(sno_any(&s, set));
+    m = sno_any(&s, set);
+    assert(m.begin == z + 1 && m.end == z + 2); // matched the NUL
     assert(s.begin == z + 2);
     s = sno_bind("\xFF");
-    assert(sno_any(&s, sno_bind("\xA0\xFF")));
+    assert(view_eq(sno_any(&s, sno_bind("\xA0\xFF")), "\xFF"));
 
-    // NOTANY: match advances by one
+    // NOTANY: match is the one char, cursor advances by one
     s = sno_bind("XA");
     before = s;
-    assert(sno_notany(&s, sno_bind("AEIOU")));
+    m = sno_notany(&s, sno_bind("AEIOU"));
+    assert(view_eq(m, "X"));
+    assert(m.begin == before.begin && m.end == s.begin);
     assert(s.begin == before.begin + 1);
     assert(s.end == before.end);
 
     // NOTANY: first char in set fails
     s = sno_bind("AX");
     before = s;
-    assert(!sno_notany(&s, sno_bind("AEIOU")));
+    assert(sno_failed(sno_notany(&s, sno_bind("AEIOU"))));
     assert(view_same(s, before));
 
     // NOTANY: fails at end - no char to match
     s = sno_null();
     before = s;
-    assert(!sno_notany(&s, sno_bind("A")));
+    assert(sno_failed(sno_notany(&s, sno_bind("A"))));
     assert(view_same(s, before));
 
     // NOTANY: Green Book example - STRUCTURE == CERSTU
     s = sno_bind("A");
-    assert(sno_notany(&s, sno_bind("STRUCTURE")));
+    assert(view_eq(sno_notany(&s, sno_bind("STRUCTURE")), "A"));
     s = sno_bind("A");
-    assert(sno_notany(&s, sno_bind("CERSTU")));
+    assert(view_eq(sno_notany(&s, sno_bind("CERSTU")), "A"));
     s = sno_bind("T");
-    assert(!sno_notany(&s, sno_bind("STRUCTURE")));
+    assert(sno_failed(sno_notany(&s, sno_bind("STRUCTURE"))));
     s = sno_bind("T");
-    assert(!sno_notany(&s, sno_bind("CERSTU")));
+    assert(sno_failed(sno_notany(&s, sno_bind("CERSTU"))));
 
     // NOTANY: failure views propagate
     s = sno_bind("X");
     before = s;
-    assert(!sno_notany(&s, sno_fail()));
+    assert(sno_failed(sno_notany(&s, sno_fail())));
     assert(view_same(s, before));
     s = sno_fail();
-    assert(!sno_notany(&s, sno_bind("A")));
+    assert(sno_failed(sno_notany(&s, sno_bind("A"))));
     assert(sno_failed(s));
 
     // NOTANY: NUL is an ordinary member
@@ -413,9 +420,9 @@ static void test_any_notany() {
     set.end = z + 2;                            // set { '\0' }
     s.begin = z + 1;
     s.end = z + 3;                              // subject "\0B"
-    assert(!sno_notany(&s, set));
+    assert(sno_failed(sno_notany(&s, set)));
     s.begin = z + 2;                            // subject "B"
-    assert(sno_notany(&s, set));
+    assert(view_eq(sno_notany(&s, set), "B"));
 }
 
 /*
@@ -482,25 +489,103 @@ static void test_ident_differ() {
     assert(!sno_differ(sno_fail(), sno_null()));
 }
 
+/*
+ * 2.8 LEN: match exactly n characters, whatever they are.
+ * Success returns the matched view [old cursor, old cursor + n)
+ * and advances begin by n; end is never moved.
+ * Failure returns sno_fail() and leaves the subject unchanged.
+ * Preconditions: subject pointer != NULL; n >= 0
+ * (Green Book error 14, NEGATIVE NUMBER IN ILLEGAL CONTEXT).
+ */
+static void test_len() {
+    static const char z[] = { 'A', '\0', '\xFF', 'B' };
+    sno_view_t s, before, m;
+
+    // match is a view into the subject, cursor advances by n
+    s = sno_bind("SNOBOL4");
+    before = s;
+    m = sno_len(&s, 3);
+    assert(view_eq(m, "SNO"));
+    assert(m.begin == before.begin);            // a view, not a copy
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(s.begin == before.begin + 3);
+    assert(s.end == before.end);
+    assert(view_eq(s, "BOL4"));
+
+    // LEN(0): null string at the cursor, subject unchanged
+    s = sno_bind("SNOBOL4");
+    before = s;
+    m = sno_len(&s, 0);
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == before.begin);            // at the cursor
+    assert(view_same(s, before));
+
+    // exactly the remaining length: matches all, subject now null
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_len(&s, 7), "SNOBOL4"));
+    assert(sno_is_null(s));
+
+    // one more than remains: fails, subject unchanged
+    s = sno_bind("SNOBOL4");
+    before = s;
+    assert(sno_failed(sno_len(&s, 8)));
+    assert(view_same(s, before));
+
+    // empty subject: LEN(0) succeeds, LEN(1) fails
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_len(&s, 0)));
+    assert(view_same(s, before));
+    assert(sno_failed(sno_len(&s, 1)));
+    assert(view_same(s, before));
+
+    // Green Book 2.8 example: fixed-width fields from a card
+    s = sno_bind("1290 SEP. 27 CHINA, CHIHLI");
+    assert(view_eq(sno_len(&s, 4), "1290"));   // YR
+    assert(view_eq(sno_len(&s, 1), " "));
+    assert(view_eq(sno_len(&s, 4), "SEP."));   // MO
+    assert(view_eq(sno_len(&s, 1), " "));
+    assert(view_eq(sno_len(&s, 2), "27"));     // DAY
+    assert(view_eq(s, " CHINA, CHIHLI"));
+
+    // a failed LEN leaves the cursor usable for the next match
+    s = sno_bind("AB");
+    assert(sno_failed(sno_len(&s, 3)));
+    assert(view_eq(sno_len(&s, 2), "AB"));
+
+    // content-agnostic: NUL and high-bit chars count like any other
+    s.begin = z;
+    s.end = z + 4;
+    m = sno_len(&s, 3);
+    assert(m.begin == z && m.end == z + 3);     // 'A', '\0', '\xFF'
+    assert(s.begin == z + 3);
+
+    // failure subject propagates
+    s = sno_fail();
+    assert(sno_failed(sno_len(&s, 0)));         // even LEN(0)
+    assert(sno_failed(sno_len(&s, 1)));
+    assert(sno_failed(s));
+}
+
 // Precondition violations: each must halt with an assert.
 // Uncomment ONE line at a time; a pass is an abort, not "Pass".
 static void test_sno_halt() {
     char buf[8];
     sno_view_t s = sno_bind("X");
 
-    // sno_char_in_cstr('a', NULL);                        // charset NULL
-    // sno_unbind(s, NULL, sizeof buf);                    // buf NULL
-    // sno_unbind(sno_fail(), NULL, sizeof buf);           // buf NULL beats failure
-    // sno_output(NULL, s);                                // f NULL (error 12)
-    // sno_input(NULL, buf, sizeof buf);                   // f NULL (error 12)
-    // sno_input(tmpfile(), NULL, sizeof buf);             // buf NULL
-    // sno_input(tmpfile(), buf, 1);                       // size < 2
-    // sno_input(tmpfile(), buf, 0);                       // size < 2
-    // sno_input(fopen("halt.tmp", "w"), buf, sizeof buf); // read error (error 11)
-    // sno_any(NULL, sno_bind("A"));                       // subject pointer NULL
-    // sno_any(&s, sno_null());                            // null set (error 4)
-    // sno_notany(NULL, sno_bind("A"));                    // subject pointer NULL
-    // sno_notany(&s, sno_null());                         // null set (error 4)
+    //sno_char_in_cstr('a', NULL);                        // charset NULL
+    //sno_unbind(s, NULL, sizeof buf);                    // buf NULL
+    //sno_unbind(sno_fail(), NULL, sizeof buf);           // buf NULL beats failure
+    //sno_output(NULL, s);                                // f NULL (error 12)
+    //sno_input(NULL, buf, sizeof buf);                   // f NULL (error 12)
+    //sno_input(tmpfile(), NULL, sizeof buf);             // buf NULL
+    //sno_input(tmpfile(), buf, 1);                       // size < 2
+    //sno_input(tmpfile(), buf, 0);                       // size < 2
+    //sno_input(fopen("halt.tmp", "w"), buf, sizeof buf); // read error (error 11)
+    //sno_any(NULL, sno_bind("A"));                       // subject pointer NULL
+    //sno_any(&s, sno_null());                            // null set (error 4)
+    //sno_notany(NULL, sno_bind("A"));                    // subject pointer NULL
+    //sno_notany(&s, sno_null());                         // null set (error 4)
 }
 
 static void test_core() {
@@ -514,8 +599,8 @@ static void test_core() {
     test_trim();
     test_any_notany();
     test_ident_differ();
-
-    //test_sno_halt();
+    //test_len();
+    test_sno_halt();
     printf("Pass\n");
 }
 
