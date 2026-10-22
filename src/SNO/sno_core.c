@@ -91,15 +91,24 @@ sno_view_t sno_trim(sno_view_t v) {
     return v;
 }
 
-sno_view_t sno_len(sno_view_t* u, int n) {}
+sno_view_t sno_len(sno_view_t* u, int n) {
+    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(n > sno_size(*u) || sno_failed(*u)) return sno_fail();
+    sno_view_t w;
+    w.begin = u->begin;
+    u->begin += n;
+    w.end = u->begin;
+    return w;
+}
 
 sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    sno_view_t w;
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
     if(sno_is_null(v)) sno_error(SNO_ERR_NULL_STRING);
     if (sno_is_null(*u)) return sno_fail();
     if (!sno_char_in_set(*u->begin, v)) return sno_fail();
+    sno_view_t w;
     w.begin = u->begin;
     u->begin++;
     w.end = u->begin;
@@ -108,11 +117,11 @@ sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
 
 sno_view_t sno_notany(sno_view_t* u, sno_view_t v) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    sno_view_t w;
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
     if(sno_is_null(v)) sno_error(SNO_ERR_NULL_STRING);
     if (sno_is_null(*u)) return sno_fail();
     if (sno_char_in_set(*u->begin, v)) return sno_fail();
+    sno_view_t w;
     w.begin = u->begin;
     u->begin++;
     w.end = u->begin;

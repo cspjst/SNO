@@ -599,7 +599,7 @@ static void test_core() {
     test_trim();
     test_any_notany();
     test_ident_differ();
-    //test_len();
+    test_len();
     test_sno_halt();
     printf("Pass\n");
 }

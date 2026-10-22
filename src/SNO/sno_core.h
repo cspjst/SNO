@@ -10,7 +10,7 @@
  * Griswold, Poage & Polonsky, 1971 (aka "The Green Book").
  *
  * Failure means the text doesn't match: functions return sno_fail() or false, and failure views propagate.
- * A precondition (@pre) is a programmer error: it raises the Green Book error named, via sno_error() (Green Book 10.2.2).
+ * A precondition is a programmer error: it raises the Green Book error named, via sno_error() (Green Book 10.2.2).
  * @see sno_error.h
  */
 #ifndef SNO_CORE_H
