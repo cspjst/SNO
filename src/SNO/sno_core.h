@@ -266,6 +266,70 @@ sno_view_t sno_any(sno_view_t* u, sno_view_t v);
  */
 sno_view_t sno_notany(sno_view_t* u, sno_view_t v);
 
+/**
+ * 2.11 SNOBOL RTAB(integer)
+ * Match from the cursor up to, but not including, the nth character from the end.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ * @pre     n >= 0, else error 14 NEGATIVE NUMBER IN ILLEGAL CONTEXT
+ *
+ * Success: returns the matched view [old cursor, u->end - n)
+ * modifies the subject - cursor begin moves to u->end - n.
+ *  + n == number of characters remaining: returns a null string at the
+ *    cursor; the subject is unchanged.
+ *  + n == 0: matches the rest of the subject (REM).
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + u->end - n is left of the cursor - fewer than n characters remain.
+ *  + The subject is a failure view.
+ *
+ * @note    RTAB(0) is REM (Green Book 2.11).
+ * @see     sno_rem()
+ */
+sno_view_t sno_rtab(sno_view_t* u, int n);
+
+/**
+ * 2.11 SNOBOL REM
+ * Match the rest of the subject (u), from the cursor to the end.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns the matched view [old cursor, end); modifies the subject -
+ *          cursor begin moves to the end, leaving the subject a null string.
+ *  + cursor already at end: returns a null string at the cursor;
+ *    the subject is unchanged.
+ * Failure: returns sno_fail().
+ *  + The subject is a failure view.
+ *
+ * @note    Never fails on a real subject: REM always matches, if only the null string.
+ * @note    REM is RTAB(0) (Green Book 2.11); its precondition comes from sno_rtab().
+ * @see     sno_rtab(), sno_len()
+ */
+static inline sno_view_t sno_rem(sno_view_t* u) { return sno_rtab(u, 0); }
+
+/**
+ * 2.11 SNOBOL TAB(integer)
+ * Match up through the nth character of the view (u), counting from its begin.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ * @pre     n >= 0, else error 14 NEGATIVE NUMBER IN ILLEGAL CONTEXT
+ *
+ * Success: returns the matched view [begin, begin + n); modifies the subject -
+ *          begin moves to column n, leaving u as column n to end.
+ *  + n == 0: returns a null string at begin; the subject is unchanged.
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + n is greater than the size of u.
+ *  + The subject is a failure view.
+ *
+ * @warning Columns count from u's begin, which is the cursor. On a fresh view
+ *          (just read or bound) that is column n of the line; after other
+ *          matches it is n characters further on, i.e. LEN(n). For true
+ *          columns, TAB from a fresh copy:  u = line; sno_tab(&u, 29);
+ * @note    Unlike Green Book TAB, it cannot fail for "cursor already past n":
+ *          a view has no position left of its begin.
+ * @see     sno_rtab(), sno_len()
+ */
+sno_view_t sno_tab(sno_view_t* u, int n);
+
 // Chapter 3 - Primitive Functions, Predicates, and Operations
 
 /**

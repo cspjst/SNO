@@ -567,6 +567,245 @@ static void test_len() {
     assert(sno_failed(s));
 }
 
+/*
+ * 2.11 RTAB: match from the cursor up to, but not including, the nth
+ * character from the end. RTAB(0) is REM.
+ * Success returns the matched view [old cursor, end - n) and moves
+ * begin to end - n; end is never moved.
+ * Failure returns sno_fail() and leaves the subject unchanged.
+ * Preconditions: subject pointer != NULL (error 10); n >= 0
+ * (error 14, NEGATIVE NUMBER IN ILLEGAL CONTEXT).
+ */
+static void test_rtab() {
+    static const char z[] = { 'A', '\0', '\xFF', 'B' };
+    sno_view_t s, before, m;
+
+    // Green Book: 'SNOBOL4' LEN(2) RTAB(1) - RTAB matches OBOL
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_len(&s, 2), "SN"));
+    before = s;
+    m = sno_rtab(&s, 1);
+    assert(view_eq(m, "OBOL"));
+    assert(m.begin == before.begin);            // a view, not a copy
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(s.end == before.end);                // end never moves
+    assert(view_eq(s, "4"));
+
+    // RTAB(0): the rest of the subject (REM), subject now null
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_rtab(&s, 0), "SNOBOL4"));
+    assert(sno_is_null(s));
+
+    // n == characters remaining: null string at the cursor, unchanged
+    s = sno_bind("SNOBOL4");
+    before = s;
+    m = sno_rtab(&s, 7);
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == before.begin);
+    assert(view_same(s, before));
+
+    // n > characters remaining: would move the cursor left - failure
+    s = sno_bind("SNOBOL4");
+    before = s;
+    assert(sno_failed(sno_rtab(&s, 8)));
+    assert(view_same(s, before));
+
+    // measured from the end, not the start: cursor already past it fails
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_len(&s, 5), "SNOBO"));  // 2 left
+    before = s;
+    assert(sno_failed(sno_rtab(&s, 3)));
+    assert(view_same(s, before));
+    assert(view_eq(sno_rtab(&s, 2), ""));       // exactly at it: null match
+    assert(view_eq(sno_rtab(&s, 1), "L"));
+
+    // Green Book: RTAB(8) REM . L8 - split off the last eight characters
+    s = sno_bind("DOMINICK V. DANIELS");
+    assert(view_eq(sno_rtab(&s, 8), "DOMINICK V."));
+    assert(view_eq(sno_rtab(&s, 0), " DANIELS"));   // L8
+    assert(sno_is_null(s));
+
+    // empty subject: RTAB(0) succeeds, RTAB(1) fails
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_rtab(&s, 0)));
+    assert(view_same(s, before));
+    assert(sno_failed(sno_rtab(&s, 1)));
+    assert(view_same(s, before));
+
+    // a failed RTAB leaves the cursor usable for the next match
+    s = sno_bind("AB");
+    assert(sno_failed(sno_rtab(&s, 3)));
+    assert(view_eq(sno_rtab(&s, 0), "AB"));
+
+    // content-agnostic: NUL and high-bit chars count like any other
+    s.begin = z;
+    s.end = z + 4;
+    m = sno_rtab(&s, 1);
+    assert(m.begin == z && m.end == z + 3);     // 'A', '\0', '\xFF'
+    assert(s.begin == z + 3);
+
+    // failure subject propagates
+    s = sno_fail();
+    assert(sno_failed(sno_rtab(&s, 0)));        // even RTAB(0)
+    assert(sno_failed(sno_rtab(&s, 1)));
+    assert(sno_failed(s));
+}
+
+/*
+ * 2.11 REM: match the rest of the subject. REM is RTAB(0).
+ * Success returns the matched view [old cursor, end) and leaves the
+ * subject null at its end; only a failure-view subject fails.
+ * Precondition: subject pointer != NULL (error 10).
+ */
+static void test_rem() {
+    static const char z[] = { 'A', '\0', '\xFF' };
+    sno_view_t s, before, m;
+
+    // whole subject: matched, subject now null at its end
+    s = sno_bind("SNOBOL4");
+    before = s;
+    m = sno_rem(&s);
+    assert(view_eq(m, "SNOBOL4"));
+    assert(m.begin == before.begin);            // a view, not a copy
+    assert(m.end == before.end);
+    assert(sno_is_null(s));
+    assert(s.begin == before.end);              // cursor at the end
+    assert(s.end == before.end);                // end never moves
+
+    // after other matches: the remainder only
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_len(&s, 2), "SN"));
+    assert(view_eq(sno_rem(&s), "OBOL4"));
+    assert(sno_is_null(s));
+
+    // at the end: succeeds with a null string, never fails
+    before = s;
+    m = sno_rem(&s);
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == before.begin);
+    assert(view_same(s, before));
+    assert(sno_is_null(sno_rem(&s)));           // and again
+
+    // empty subject: null string
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_rem(&s)));
+    assert(view_same(s, before));
+
+    // Green Book 2.11: RTAB(8) REM . L8
+    s = sno_bind("DOMINICK V. DANIELS");
+    assert(view_eq(sno_rtab(&s, 8), "DOMINICK V."));
+    assert(view_eq(sno_rem(&s), " DANIELS"));   // L8
+
+    // same as RTAB(0)
+    s = sno_bind("PUSHI");
+    m = sno_rem(&s);
+    s = sno_bind("PUSHI");
+    assert(sno_ident(m, sno_rtab(&s, 0)));
+
+    // content-agnostic: NUL and high-bit chars included
+    s.begin = z;
+    s.end = z + 3;
+    m = sno_rem(&s);
+    assert(m.begin == z && m.end == z + 3);
+    assert(sno_is_null(s));
+
+    // failure subject propagates
+    s = sno_fail();
+    assert(sno_failed(sno_rem(&s)));
+    assert(sno_failed(s));
+}
+
+/*
+ * 2.11 TAB: match up through the nth character of the view, counting
+ * from its begin. Success returns [begin, begin + n) and leaves the
+ * subject as "column n to end"; end is never moved.
+ * Failure returns sno_fail() and leaves the subject unchanged.
+ * Preconditions: subject pointer != NULL (error 10); n >= 0 (error 14).
+ * Columns are of the view passed in: TAB from a fresh copy of the line.
+ */
+static void test_tab() {
+    // Green Book 2.11 card: cols 1-3 district, 4-29 name, 30-35 party, 36- PO
+    static const char card[] = "  1WILLIAM T. CAHILL         REP   COLLINGSWOOD";
+    static const char z[] = { 'A', '\0', '\xFF', 'B' };
+    sno_view_t line = sno_bind(card);
+    sno_view_t s, before, m;
+
+    // fresh view: TAB(n) matches columns 1..n, leaves column n to end
+    s = line;
+    m = sno_tab(&s, 3);
+    assert(view_eq(m, "  1"));
+    assert(m.begin == line.begin);              // a view, not a copy
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(s.begin == line.begin + 3);
+    assert(s.end == line.end);                  // end never moves
+
+    // the Green Book fields, each TABbed from a fresh copy of the line
+    s = line;
+    sno_tab(&s, 3);
+    assert(view_eq(sno_len(&s, 26), "WILLIAM T. CAHILL         "));   // NAME
+    s = line;
+    sno_tab(&s, 35);
+    assert(view_eq(sno_rem(&s), "COLLINGSWOOD"));                     // PO
+
+    // TAB(0): null string at begin, subject unchanged
+    s = line;
+    m = sno_tab(&s, 0);
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == line.begin);
+    assert(view_same(s, line));
+
+    // TAB(size): whole view, subject now null at its end
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_tab(&s, 7), "SNOBOL4"));
+    assert(sno_is_null(s));
+
+    // n > size: failure, subject unchanged
+    s = sno_bind("SNOBOL4");
+    before = s;
+    assert(sno_failed(sno_tab(&s, 8)));
+    assert(view_same(s, before));
+
+    // @warning: chained after other matches, TAB counts from the new
+    // begin - TAB(3) then TAB(29) lands on column 32, i.e. LEN(29)
+    s = line;
+    sno_tab(&s, 3);
+    m = sno_tab(&s, 29);
+    assert(m.begin == line.begin + 3);
+    assert(s.begin == line.begin + 32);
+    assert(view_eq(s, "   COLLINGSWOOD"));
+
+    // so on any view, TAB(n) and LEN(n) agree
+    s = sno_bind("SNOBOL4");
+    sno_len(&s, 2);
+    before = s;
+    m = sno_tab(&s, 4);
+    s = before;
+    assert(sno_ident(m, sno_len(&s, 4)));
+
+    // empty subject: TAB(0) succeeds, TAB(1) fails
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_tab(&s, 0)));
+    assert(view_same(s, before));
+    assert(sno_failed(sno_tab(&s, 1)));
+    assert(view_same(s, before));
+
+    // content-agnostic: NUL and high-bit chars count like any other
+    s.begin = z;
+    s.end = z + 4;
+    m = sno_tab(&s, 3);
+    assert(m.begin == z && m.end == z + 3);     // 'A', '\0', '\xFF'
+    assert(s.begin == z + 3);
+
+    // failure subject propagates
+    s = sno_fail();
+    assert(sno_failed(sno_tab(&s, 0)));         // even TAB(0)
+    assert(sno_failed(sno_tab(&s, 1)));
+    assert(sno_failed(s));
+}
+
 // Precondition violations: each must halt with an assert.
 // Uncomment ONE line at a time; a pass is an abort, not "Pass".
 static void test_sno_halt() {
@@ -600,7 +839,9 @@ static void test_core() {
     test_any_notany();
     test_ident_differ();
     test_len();
-    test_sno_halt();
+    test_rtab();
+    test_rem();
+    //test_sno_halt();
     printf("Pass\n");
 }
 

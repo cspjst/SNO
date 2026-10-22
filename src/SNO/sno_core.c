@@ -102,6 +102,17 @@ sno_view_t sno_len(sno_view_t* u, int n) {
     return w;
 }
 
+sno_view_t sno_rtab(sno_view_t* u, int n) {
+    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
+    sno_view_t w;
+    w.begin = u->begin;
+    u->begin = u->end - n;
+    w.end = u->begin;
+    return w;
+}
+
 sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
