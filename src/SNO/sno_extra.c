@@ -44,3 +44,20 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size) {
     v.end   = p;
     return v;
 }
+
+// 1.5
+sno_view_t sno_proxy(char* buf, size_t size, const char** from, const char** to) {
+    if(!buf || !size || !from || !to) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    size_t i;
+    for(i = 0; from[i] != NULL; ++i) if(to[i] == NULL) return sno_fail();
+    if(from[i] || to[i] || !from[0] || !to[0]) return sno_fail();
+    for(i = 0; from[i] != NULL; ++i) {
+        printf("%s = %s\n", from[i], to[i]);
+    }
+    return sno_fail();
+}
+
+// 3.4.2
+sno_view_t sno_replace(char* buf, size_t size, sno_view_t from, sno_view_t to) {
+    return sno_fail();
+}
