@@ -50,29 +50,23 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size) {
 
 // 1.5
 sno_view_t sno_proxy(char* buf, size_t size, const char** from, const char** to) {
-    if(!buf || !size || !from || !to) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    size_t i;
-    for(i = 0; from[i] != NULL; ++i) if(to[i] == NULL) return sno_fail();
-    if(from[i] || to[i] || !from[0] || !to[0]) return sno_fail();
+    if(!buf || !memchr(buf, '\0', size) || !from || !to) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    size_t i, j, k;
+    for(i = 0; from[i] != NULL; ++i) if(to[i] == NULL || !*from[i]) return sno_fail();
+    if(to[i] || i == 0) return sno_fail();
 
     char* temp = (char*)calloc(size, 1);
-    char *q = temp;
-    size_t temp_size = 0;
+    if(!temp) sno_error(SNO_ERR_STRING_OVERFLOW);
+    char* q = temp;
     const char* p = buf;
 
     while(*p) {
-        for(size_t j = 0; j < i; ++j) {
-            if(strncmp(p, from[j], strlen(from[j])) == 0) {
-                temp_size += strlen(to[j]);
-                if(temp_size >= size) goto error;
-                strcpy(q, to[j]);
-                p += strlen(from[j]);
-                q += strlen(to[j]);
-                break;
-            }
-        }
-        *q++ = *p++;
-        if(++temp_size >= size) goto error;
+        for(j = 0; j < i && strncmp(p, from[j], strlen(from[j])) != 0; ++j);
+        k = j < i ? strlen(to[j]) : 1;      // copy a replacement or one char
+        if(q + k >= temp + size) goto error;
+        memcpy(q, j < i ? to[j] : p, k);
+        q += k;
+        p += j < i ? strlen(from[j]) : 1;
     }
     strcpy(buf, temp);
     free(temp);

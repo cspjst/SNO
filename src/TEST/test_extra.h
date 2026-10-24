@@ -186,7 +186,7 @@ static void test_proxy() {
     assert(v.begin == t);                       // a view of buf
     assert(*v.end == '\0');                     // terminated, outside view
     assert(t[12] == 'X');                       // nothing past the old '\0' touched
-/*
+
     // several markers, repeated, adjacent; result grows
     strcpy(t, "mov $0,$1\nadd $0,$0");
     assert(view_eq(sno_proxy(t, sizeof t, dollar, frame), "mov ax,3\nadd ax,ax"));
@@ -240,7 +240,7 @@ static void test_proxy() {
     assert(sno_failed(sno_proxy(t, sizeof t, none, none)));
     assert(sno_failed(sno_proxy(t, sizeof t, blank, x)));
     assert(strcmp(t, "$0$1") == 0);
-*/
+
 }
 
 /*
