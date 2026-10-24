@@ -101,7 +101,6 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size);
  *  + the result fits in size, '\0' included, else error 15 STRING OVERFLOW
  *
  * Success: returns a view of the expanded buf; buf is terminated with '\0', which the view excludes.
- *  + to[i] "" deletes its marker.
  *  + No markers in buf: buf is unchanged.
  *  + buf "" gives a null string at buf.
  * Failure: returns sno_fail(); buf is unchanged.
