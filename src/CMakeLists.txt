@@ -3,7 +3,8 @@ cmake_minimum_required(VERSION 3.10)
 
 # Warning: This skips critical compiler checks.
 # Only use this if Watcom fails CMake's detection
-# Necessary to suppress compiler checks for cross compilation using OW2 and C under ARM environments
+# Necessary to suppress compiler checks for cross compilation
+# using OW2 and C under ARM environments
 set(CMAKE_C_COMPILER_WORKS 1)
 
 project(
@@ -30,13 +31,13 @@ add_compile_options(
 
     # === MEMORY MODEL (pick ONE) ===
     -ml                 # Large model: far data pointers (flexible)
-    # -zl               # Tiny model: .COM output, all segments unified (smallest)
+    # -zl               # Tiny model: .COM output, all segments unified smallest
 
     # === SIZE vs SPEED (pick ONE) ===
     # -os                 # Optimize for CODE SIZE
     # -ox                 # Enable extra optimizations (dead code elimination)
-    -zp1                # Pack structs to 1-byte alignment (Critical for data size)
-    # -fpi87              # Assume 8087 exists (removes software FP emulation stubs if any are pulled in)
+    -zp1              # Pack structs to 1-byte alignment Critical for data size
+    # -fpi87          # Assume 8087 exists (removes software FP emu)
     # -ot                 # Optimize for SPEED
     # -od                 # Disable optimizations (debugging)
 
