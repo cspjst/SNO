@@ -9,9 +9,21 @@
  * C function implementation of the SNOBOL4 pattern matching semantics as defined in 'The SNOBOL4 Programming Language' 2nd edition,
  * Griswold, Poage & Polonsky, 1971 (aka "The Green Book").
  *
+ * Views: text is handled as views [begin, end) that never own or copy it (see sno_types.h).
+ * When matching, a subject's begin is the cursor; a pattern function advances it on success
+ * and leaves it unchanged on failure. Matching is anchored with no implicit backtracking:
+ * functions chain by passing views, and alternatives are written by the caller.
+ *
+ * Return types: a function that takes a subject (sno_view_t* u) returns a view.
+ * Pattern functions return the matched view; tests of the cursor (RPOS) return a null string
+ * at the cursor for true and sno_fail() for false - SNOBOL's own model (Green Book ch. 3:
+ * predicates return the null string or fail). Functions that take no subject
+ * (IDENT, DIFFER, sno_failed, sno_is_null) return bool.
+ *
  * Failure means the text doesn't match: functions return sno_fail() or false, and failure views propagate.
- * A precondition is a programmer error: it raises the Green Book error named, via sno_error() (Green Book 10.2.2).
- * @see sno_error.h
+ * A precondition is a programmer error: it raises the Green Book error named, via sno_error(), which
+ * halts with the error number as the exit code - as SNOBOL's default &ERRLIMIT = 0 terminates (Green Book 10.2.2).
+ * @see sno_types.h, sno_error.h
  */
 #ifndef SNO_CORE_H
 #define SNO_CORE_H

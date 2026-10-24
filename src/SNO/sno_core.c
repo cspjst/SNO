@@ -162,7 +162,14 @@ sno_view_t sno_rtab(sno_view_t* u, int n) {
 
 // 2.11
 sno_view_t sno_tab(sno_view_t* u, int n) {
-    return sno_null();
+    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
+    sno_view_t w;
+    w.begin = u->begin;
+    u->begin += n;
+    w.end = u->begin;
+    return w;
 }
 
 // 3.0 Primitive Functions, Predicates, and Operations
