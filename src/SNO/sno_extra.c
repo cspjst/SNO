@@ -2,6 +2,9 @@
 #include "sno_error.h"
 #include "sno_core.h"
 
+#include <stdlib.h>
+#include <string.h>
+
 // 1.1 Assignment Statements
 char* sno_unbind(sno_view_t v, char* buf, size_t size) {
     if(!buf) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
@@ -51,10 +54,32 @@ sno_view_t sno_proxy(char* buf, size_t size, const char** from, const char** to)
     size_t i;
     for(i = 0; from[i] != NULL; ++i) if(to[i] == NULL) return sno_fail();
     if(from[i] || to[i] || !from[0] || !to[0]) return sno_fail();
-    for(i = 0; from[i] != NULL; ++i) {
-        printf("%s = %s\n", from[i], to[i]);
+
+    char* temp = (char*)calloc(size, 1);
+    char *q = temp;
+    size_t temp_size = 0;
+    const char* p = buf;
+
+    while(*p) {
+        for(size_t j = 0; j < i; ++j) {
+            if(strncmp(p, from[j], strlen(from[j])) == 0) {
+                temp_size += strlen(to[j]);
+                if(temp_size >= size) goto error;
+                strcpy(q, to[j]);
+                p += strlen(from[j]);
+                q += strlen(to[j]);
+                break;
+            }
+        }
+        *q++ = *p++;
+        if(++temp_size >= size) goto error;
     }
-    return sno_fail();
+    strcpy(buf, temp);
+    free(temp);
+    return sno_bind(buf);
+error:
+    free(temp);
+    sno_error(SNO_ERR_STRING_OVERFLOW);
 }
 
 // 3.4.2

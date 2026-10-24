@@ -182,12 +182,11 @@ static void test_proxy() {
     memset(t, 'X', sizeof t);
     strcpy(t, "sub sp,$1*2");
     v = sno_proxy(t, sizeof t, dollar, frame);
-/*
     assert(view_eq(v, "sub sp,3*2"));
     assert(v.begin == t);                       // a view of buf
     assert(*v.end == '\0');                     // terminated, outside view
     assert(t[12] == 'X');                       // nothing past the old '\0' touched
-
+/*
     // several markers, repeated, adjacent; result grows
     strcpy(t, "mov $0,$1\nadd $0,$0");
     assert(view_eq(sno_proxy(t, sizeof t, dollar, frame), "mov ax,3\nadd ax,ax"));
