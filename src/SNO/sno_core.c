@@ -16,6 +16,8 @@ bool sno_char_in_set(char c, sno_view_t v) {
     return p != v.end;
 }
 
+// C support
+
 bool sno_char_in_cstr(char c, const char* cstr)  {
     if(!cstr) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     sno_cursor_t p = cstr;
@@ -31,6 +33,11 @@ sno_view_t sno_bind(const char* cstr) {
     return v;
 }
 
+// Greenbook Sections:
+// Chapter 1 - Introduction to the SNOBOL Programming Language
+
+// 1.1 Assignment Statements
+
 char* sno_unbind(sno_view_t v, char* buf, size_t size) {
     if(!buf) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     if(sno_failed(v) || !size) return NULL;
@@ -41,18 +48,15 @@ char* sno_unbind(sno_view_t v, char* buf, size_t size) {
     return buf;
 }
 
+// 1.3 Strings
+
 sno_view_t sno_null() {
     sno_view_t v;
     v.begin = v.end = SNO_NULL_STRING;
     return v;
 }
 
-sno_view_t sno_fail() {
-    sno_view_t v;
-    v.begin = v.end = NULL;
-    return v;
-}
-
+// 1.3.4 IO
 int sno_output(FILE* f, sno_view_t v) {
     if(!f) sno_error(SNO_ERR_ILLEGAL_IO_UNIT);
     if(sno_failed(v)) return 0;
@@ -84,6 +88,17 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size) {
     return v;
 }
 
+// 1.8 Flow Control
+
+sno_view_t sno_fail() {
+    sno_view_t v;
+    v.begin = v.end = NULL;
+    return v;
+}
+
+// 1.10 Functions
+
+// 1.11
 sno_view_t sno_trim(sno_view_t v) {
     if(sno_failed(v)) return v;
     sno_cursor_t i = v.end - 1;
@@ -91,6 +106,9 @@ sno_view_t sno_trim(sno_view_t v) {
     return v;
 }
 
+// 2.0 Pattern Matching
+
+// 2.8
 sno_view_t sno_len(sno_view_t* u, int n) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
@@ -102,17 +120,7 @@ sno_view_t sno_len(sno_view_t* u, int n) {
     return w;
 }
 
-sno_view_t sno_rtab(sno_view_t* u, int n) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
-    if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
-    sno_view_t w;
-    w.begin = u->begin;
-    u->begin = u->end - n;
-    w.end = u->begin;
-    return w;
-}
-
+// 2.10
 sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
@@ -126,6 +134,7 @@ sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
     return w;
 }
 
+// 2.10
 sno_view_t sno_notany(sno_view_t* u, sno_view_t v) {
     if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
@@ -139,6 +148,26 @@ sno_view_t sno_notany(sno_view_t* u, sno_view_t v) {
     return w;
 }
 
+// 2.11
+sno_view_t sno_rtab(sno_view_t* u, int n) {
+    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
+    sno_view_t w;
+    w.begin = u->begin;
+    u->begin = u->end - n;
+    w.end = u->begin;
+    return w;
+}
+
+// 2.11
+sno_view_t sno_tab(sno_view_t* u, int n) {
+    return sno_null();
+}
+
+// 3.0 Primitive Functions, Predicates, and Operations
+
+// 3.3.1
 bool sno_ident(sno_view_t u, sno_view_t v) {
     if(sno_failed(u) || sno_failed(v) || sno_size(u) != sno_size(v)) return false;
     sno_cursor_t p = u.begin, q = v.begin;
@@ -146,6 +175,7 @@ bool sno_ident(sno_view_t u, sno_view_t v) {
     return p == u.end;
 }
 
+// 3.3.1
 bool sno_differ(sno_view_t u, sno_view_t v) {
     if(sno_failed(u) || sno_failed(v)) return false;    // sno_differ has to check for failure itself before negating anything
     if(sno_size(u) != sno_size(v)) return true;

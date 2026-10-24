@@ -841,6 +841,7 @@ static void test_core() {
     test_len();
     test_rtab();
     test_rem();
+    test_tab();
     //test_sno_halt();
     printf("Pass\n");
 }
