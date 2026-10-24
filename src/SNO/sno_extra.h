@@ -91,8 +91,8 @@ int sno_output(FILE* f, sno_view_t v);
 sno_view_t sno_input(FILE* f, char* buf, size_t size);
 
 /**
- * 1.5 C PROXY
- * Expand a template in place: each occurrence of a marker from[i] in the C string in buf is replaced by to[i].
+ * 1.5 C STRING REPLACE
+ * Replace strings in place: each occurrence of from[i] in the C string in buf is replaced by to[i].
  *
  * @pre
  *  + buf != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
@@ -100,25 +100,27 @@ sno_view_t sno_input(FILE* f, char* buf, size_t size);
  *  + from != NULL and to != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
  *  + the result fits in size, '\0' included, else error 15 STRING OVERFLOW
  *
- * Success: returns a view of the expanded buf; buf is terminated with '\0', which the view excludes.
- *  + No markers in buf: buf is unchanged.
+ * Success: returns a view of the result at buf; buf is terminated with '\0', which the view excludes.
+ *  + to[i] "" deletes each from[i].
+ *  + No from[i] occurs in buf: buf is unchanged.
  *  + buf "" gives a null string at buf.
  * Failure: returns sno_fail(); buf is unchanged.
  *  + from and to have different lengths - as REPLACE (Green Book 3.4.2).
- *  + from is empty, or a marker is "" - as REPLACE's null argument.
+ *  + from is empty, or a from[i] is "" - as REPLACE's null argument.
  *
  * @warning A to[i] must not point into buf.
  * @note
  *  + from and to are NULL-terminated lists of C strings.
- *  + Scans left to right; at each position the first marker in from that matches wins - SNOBOL alternation,
+ *  + Scans left to right; at each position the first from[i] that matches wins - SNOBOL alternation,
  *    so list "$10" before "$1".
- *  + Single pass: a marker inside a to[i] is copied, not expanded again.
- *  + Text matching no marker is copied as is - with markers "$0" ... "$9", "jmp $" is safe.
+ *  + Single pass: a from[i] inside a to[i] is copied, not replaced again.
+ *  + Text matching no from[i] is copied as is.
  *  + Error 15 only when there is a result to form: on failure nothing is formed (Green Book 10.2.3).
  *  + In the spirit of the replacement statement (Green Book 1.5): subject pattern = object.
- * @see     sno_replace()
+ *  + P86 templates: from = { "$0", "$1", NULL } expands "sub sp,$1*2"; "jmp $" is safe.
+ * @see     sno_chr_replace()
  */
-sno_view_t sno_proxy(char* buf, size_t size, const char** from, const char** to);
+sno_view_t sno_str_replace(char* buf, size_t size, const char** from, const char** to);
 
 /**
  * 3.4.2 SNOBOL REPLACE(X,Y,Z)
@@ -127,23 +129,22 @@ sno_view_t sno_proxy(char* buf, size_t size, const char** from, const char** to)
  * @pre
  *  + buf != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
  *  + buf holds a '\0' within size, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *  + from != NULL and to != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
  *
- * Success: returns a view of buf [buf, its '\0'), measured before translation.
- *  + Characters not in from are unchanged; the size never changes.
+ * Success: returns a view of buf [buf, its '\0'); buf keeps its '\0', which the view excludes.
+ *  + Characters not in from are unchanged and the size never changes.
  *  + buf "" gives a null string at buf.
  * Failure: returns sno_fail(); buf is unchanged.
- *  + from and to have different sizes (Green Book 3.4.2).
- *  + from or to is the null string (Green Book 3.4.2) - failure, not error 4 as for ANY.
- *  + from or to is a failure view.
+ *  + from and to have different lengths (Green Book 3.4.2).
+ *  + from or to is "" (Green Book 3.4.2) - failure, not error 4 as for ANY.
  *
- * @warning A '\0' in to ends the C string in buf early; the view is still right.
  * @note
  *  + A character repeated in from: the rightmost correspondence holds - REPLACE('FEET','EE','AO') is FOOT.
  *  + A character repeated in to is fine - REPLACE(S, '.,;:', '    ') blanks punctuation.
- *  + The terminator is not translated, so '\0' in from never matches - as sno_char_in_cstr().
- *  + No error 15: translation never changes the size. To keep the original, copy it first (sno_unbind()).
- * @see     sno_proxy()
+ *  + from and to are C strings, so '\0' can be in neither as the terminator is never translated.
+ *  + Translation never changes the size. To keep the original, copy it first (sno_unbind()).
+ * @see     sno_str_replace()
  */
-sno_view_t sno_replace(char* buf, size_t size, sno_view_t from, sno_view_t to);
+sno_view_t sno_chr_replace(char* buf, size_t size, const char* from, const char* to);
 
 #endif
