@@ -30,8 +30,8 @@
 
 #include "sno_types.h"
 
+#include <stddef.h>
 #include <stdbool.h>
-#include <stdio.h>
 
 // Chapter 0 - C Support (no Green Book equivalent)
 
@@ -87,24 +87,6 @@ bool sno_char_in_cstr(char c, const char* charset);
  */
 sno_view_t sno_bind(const char* cstr);
 
-/**
- * 1.1 C UNBIND
- * Unbind the view - copy a view into buf as a C string.
- *
- * @pre     buf != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
- *
- * Success: returns buf; copies at most size - 1 chars and always terminates with '\0'.
- *  + A null string gives "".
- * Failure: returns NULL, writing nothing.
- *  + size == 0.
- *  + v is a failure view.
- *
- * @warning A NUL inside the view ends the C string early.
- * @note    Truncated if sno_size(v) > size - 1
- * @see     sno_bind()
- */
-char* sno_unbind(sno_view_t v, char* buf, size_t size);
-
 // 1.3 Strings
 
 /**
@@ -130,43 +112,6 @@ sno_view_t sno_null();
  * @see     sno_null(), sno_failed()
  */
 static inline bool sno_is_null(sno_view_t v) { return v.begin != NULL && v.begin == v.end; }
-
-/**
- * 1.3.4 SNOBOL OUTPUT
- * Write a view to an output stream; no newline is added.
- *
- * @pre     f != NULL, else error 12 ILLEGAL I/O UNIT
- *
- * Success: returns the number of bytes written.
- *  + A null string or failure view writes nothing and returns 0.
- * Failure: returns fewer bytes than the view's size.
- *  + the error indicator for the stream is set (test with ferror).
- *
- * @see     sno_input()
- */
-int sno_output(FILE* f, sno_view_t v);
-
-/**
- * 1.3.4 SNOBOL INPUT
- * Read one line from f into buf as a view.
- * '\n' is not stored; buf is terminated with '\0', which the view excludes.
- *
- * @pre     f != NULL, else error 12 ILLEGAL I/O UNIT
- * @pre     buf != NULL and size >= 2, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
- * @pre     no read error, else error 11 READING ERROR
- *
- * Success: returns a view of the line at buf.
- *  + Empty line returns a null string (size 0).
- *  + A final line without '\n' is returned as a normal line.
- *  + A line longer than size - 1 is truncated and the remainder is discarded.
- * Failure: returns sno_fail().
- *  + EOF before any character is read.
- *
- * @note    One call reads exactly one line, so a read loop always terminates.
- * @note    Possibly truncated if sno_size(v) == size - 1.
- * @see     sno_output(), sno_trim()
- */
-sno_view_t sno_input(FILE* f, char* buf, size_t size);
 
 // 1.8 Flow Control
 
@@ -341,6 +286,26 @@ static inline sno_view_t sno_rem(sno_view_t* u) { return sno_rtab(u, 0); }
  * @see     sno_rtab(), sno_len()
  */
 sno_view_t sno_tab(sno_view_t* u, int n);
+
+/**
+ * 2.12 SNOBOL RPOS(integer)
+ * Test that exactly n characters of the subject (u) remain after the cursor.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ * @pre     n >= 0, else error 14 NEGATIVE NUMBER IN ILLEGAL CONTEXT
+ *
+ * Success: returns a null string at the cursor; the subject is never modified.
+ *  + exactly n characters remain.
+ *  + n == 0: the cursor is at the end - the right anchor, "whole subject matched".
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + more or fewer than n characters remain.
+ *  + The subject is a failure view.
+ *
+ * @note    Never moves the cursor - it tests its position (Green Book 2.12).
+ * @note    RTAB(n) moves the cursor to exactly where RPOS(n) succeeds.
+ * @see     sno_rtab(), sno_at()
+ */
+sno_view_t sno_rpos(sno_view_t* u, int n);
 
 // Chapter 3 - Primitive Functions, Predicates, and Operations
 

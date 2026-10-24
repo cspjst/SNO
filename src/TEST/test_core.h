@@ -8,15 +8,17 @@
 #include <assert.h>
 
 /*
- * Tests for sno_core.h (v0.2).
+ * Tests for sno_core.h (v0.4) - SNOBOL semantics in views.
+ * Tests for sno_extra.h (unbind, input, output) are in test_extra.h.
  *
  * Two kinds of bad input, as the Green Book (10.2.2):
  *   failure        the text doesn't match: functions return false or
  *                  sno_fail(), and failure views propagate
- *   precondition   a programmer error (Green Book "must"): assert
+ *   precondition   a programmer error: sno_error() halts with the
+ *                  Green Book error number as ERRORLEVEL
  *
- * Preconditions abort, so they are listed in each test's comment
- * but not exercised.
+ * Preconditions halt, so they are listed in each test's comment and
+ * exercised one at a time in test_sno_halt().
  */
 
 // View holds exactly the characters of s (and is not a failure view)
@@ -130,147 +132,6 @@ static void test_size() {
     v.end = v.begin;
     assert(sno_size(v) == 0);
     assert(sno_size(sno_fail()) == 0);
-}
-
-/*
- * sno_unbind(v, buf, size): copies at most size - 1 chars and always
- * terminates. Returns NULL, writing nothing, for size == 0 or a
- * failure view. Each case checks the byte after the expected write.
- * Precondition: buf != NULL
- */
-static void test_unbind() {
-    char buf[16];
-    sno_view_t v = sno_bind("HELLO");
-
-    v.begin++;
-    v.end--;                                    // "ELL"
-
-    memset(buf, 'X', sizeof buf);               // plenty of room
-    assert(sno_unbind(v, buf, sizeof buf) == buf);
-    assert(strcmp(buf, "ELL") == 0);
-    assert(buf[4] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // exact fit: 3 chars + NUL
-    assert(sno_unbind(v, buf, 4) == buf);
-    assert(strcmp(buf, "ELL") == 0);
-    assert(buf[4] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // one short: truncates
-    assert(sno_unbind(v, buf, 3) == buf);
-    assert(strcmp(buf, "EL") == 0);
-    assert(buf[3] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // room for NUL only
-    assert(sno_unbind(v, buf, 1) == buf);
-    assert(buf[0] == '\0' && buf[1] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // size 0: NULL, untouched
-    assert(sno_unbind(v, buf, 0) == NULL);
-    assert(buf[0] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // null string gives ""
-    assert(sno_unbind(sno_null(), buf, sizeof buf) == buf);
-    assert(buf[0] == '\0' && buf[1] == 'X');
-
-    memset(buf, 'X', sizeof buf);               // failure: NULL, untouched
-    assert(sno_unbind(sno_fail(), buf, sizeof buf) == NULL);
-    assert(buf[0] == 'X');
-}
-
-/*
- * 1.3.4 OUTPUT: sno_output(f, v) writes the view, no newline added.
- * Precondition: f != NULL
- */
-static void test_output() {
-    char buf[16];
-    FILE* f = tmpfile();
-
-    assert(f != NULL);
-
-    assert(sno_output(f, sno_bind("HELLO")) == 5);
-    assert(sno_output(f, sno_null()) == 0);
-    assert(sno_output(f, sno_fail()) == 0);
-    assert(!ferror(f));
-
-    rewind(f);
-    assert(fread(buf, 1, sizeof buf, f) == 5);
-    assert(memcmp(buf, "HELLO", 5) == 0);
-
-    fclose(f);
-}
-
-/*
- * 1.3.4 INPUT: sno_input(f, buf, size) reads exactly one line.
- * The view excludes the '\0', but buf holds it: *v.end == '\0'.
- * Chars beyond size - 1 are discarded. Failure at EOF only.
- * Preconditions: f != NULL, buf != NULL, size >= 2
- */
-static void test_input() {
-    char area[12];                              // 8 used, 4 canary
-    sno_view_t v;
-    FILE* f = tmpfile();
-
-    assert(f != NULL);
-
-    fputs("ONE\n\nSEVENCH\nTOOLONGLINE\nLAST", f);
-    rewind(f);
-    memset(area, 'X', sizeof area);
-
-    v = sno_input(f, area, 8);
-    assert(view_eq(v, "ONE"));                  // newline not stored
-    assert(v.begin == area);
-    assert(*v.end == '\0');                     // terminated, outside view
-    assert(sno_ident(v, sno_bind("ONE")));      // agrees with bind
-
-    v = sno_input(f, area, 8);                  // empty line: null string
-    assert(v.begin == area && sno_is_null(v));
-    assert(*v.end == '\0');
-
-    v = sno_input(f, area, 8);                  // exactly fills buffer
-    assert(view_eq(v, "SEVENCH"));
-    assert(*v.end == '\0');
-
-    v = sno_input(f, area, 8);                  // no phantom empty line;
-    assert(view_eq(v, "TOOLONG"));              // long line truncated,
-    assert(*v.end == '\0');                     // rest discarded
-
-    v = sno_input(f, area, 8);                  // last line, no newline
-    assert(view_eq(v, "LAST"));
-    assert(*v.end == '\0');
-
-    v = sno_input(f, area, 8);                  // EOF is failure
-    assert(sno_failed(v));
-    assert(feof(f) && !ferror(f));
-
-    v = sno_input(f, area, 8);                  // and stays failure
-    assert(sno_failed(v));
-
-    assert(memcmp(area + 8, "XXXX", 4) == 0);   // no overrun
-
-    fclose(f);                                  // trailing '\n' then EOF:
-    f = tmpfile();                              // no extra empty line
-    assert(f != NULL);
-    fputs("A\n", f);
-    rewind(f);
-    assert(view_eq(sno_input(f, area, 8), "A"));
-    assert(sno_failed(sno_input(f, area, 8)));
-
-    fclose(f);                                  // blank last line is real
-    f = tmpfile();
-    assert(f != NULL);
-    fputs("A\n\n", f);
-    rewind(f);
-    assert(view_eq(sno_input(f, area, 8), "A"));
-    v = sno_input(f, area, 8);
-    assert(v.begin == area && sno_is_null(v));
-    assert(sno_failed(sno_input(f, area, 8)));
-
-    fclose(f);                                  // empty file
-    f = tmpfile();
-    assert(f != NULL);
-    assert(sno_failed(sno_input(f, area, 8)));
-
-    fclose(f);
 }
 
 // 1.11 TRIM: trailing POSIX "C" locale whitespace only
@@ -806,25 +667,158 @@ static void test_tab() {
     assert(sno_failed(s));
 }
 
-// Precondition violations: each must halt with an assert.
-// Uncomment ONE line at a time; a pass is an abort, not "Pass".
-static void test_sno_halt() {
-    char buf[8];
-    sno_view_t s = sno_bind("X");
+/*
+ * 2.12 RPOS: test that exactly n characters remain after the cursor.
+ * Success returns a null string at the cursor; failure returns sno_fail().
+ * Either way the subject is never modified.
+ * Preconditions: subject pointer != NULL (error 10); n >= 0 (error 14).
+ */
+static void test_rpos() {
+    static const char z[] = { 'A', '\0', '\xFF' };
+    sno_view_t s, before, m;
+    int n;
 
-    //sno_char_in_cstr('a', NULL);                        // charset NULL
-    //sno_unbind(s, NULL, sizeof buf);                    // buf NULL
-    //sno_unbind(sno_fail(), NULL, sizeof buf);           // buf NULL beats failure
-    //sno_output(NULL, s);                                // f NULL (error 12)
-    //sno_input(NULL, buf, sizeof buf);                   // f NULL (error 12)
-    //sno_input(tmpfile(), NULL, sizeof buf);             // buf NULL
-    //sno_input(tmpfile(), buf, 1);                       // size < 2
-    //sno_input(tmpfile(), buf, 0);                       // size < 2
-    //sno_input(fopen("halt.tmp", "w"), buf, sizeof buf); // read error (error 11)
-    //sno_any(NULL, sno_bind("A"));                       // subject pointer NULL
-    //sno_any(&s, sno_null());                            // null set (error 4)
-    //sno_notany(NULL, sno_bind("A"));                    // subject pointer NULL
-    //sno_notany(&s, sno_null());                         // null set (error 4)
+    // exactly n remain: null string at the cursor, subject unchanged
+    s = sno_bind("SNOBOL4");
+    before = s;
+    m = sno_rpos(&s, 7);
+    assert(sno_is_null(m));                     // true is the null string
+    assert(m.begin == s.begin);                 // at the cursor
+    assert(view_same(s, before));               // never moves
+
+    // more or fewer than n: failure, subject unchanged
+    assert(sno_failed(sno_rpos(&s, 6)));        // more remain
+    assert(view_same(s, before));
+    assert(sno_failed(sno_rpos(&s, 8)));        // fewer remain
+    assert(view_same(s, before));
+
+    // Green Book 2.12 shape: 'SNOBOL4' LEN(2) RPOS(5)
+    s = sno_bind("SNOBOL4");
+    assert(view_eq(sno_len(&s, 2), "SN"));
+    before = s;
+    assert(sno_is_null(sno_rpos(&s, 5)));
+    assert(view_same(s, before));
+    assert(sno_failed(sno_rpos(&s, 4)));
+
+    // RPOS(0): the right anchor - succeeds only at the end
+    s = sno_bind("SNOBOL4");
+    assert(sno_failed(sno_rpos(&s, 0)));        // not at the end yet
+    assert(view_eq(sno_len(&s, 7), "SNOBOL4"));
+    assert(sno_is_null(sno_rpos(&s, 0)));       // whole subject matched
+
+    // ENTIRE idiom: a chain that must consume everything
+    s = sno_bind("AB");
+    assert(view_eq(sno_len(&s, 1), "A"));
+    assert(sno_failed(sno_rpos(&s, 0)));        // "B" left over
+    assert(view_eq(sno_rem(&s), "B"));
+    assert(sno_is_null(sno_rpos(&s, 0)));
+
+    // after RTAB(n) succeeds, RPOS(n) always succeeds
+    for (n = 0; n <= 7; n++) {
+        s = sno_bind("SNOBOL4");
+        assert(!sno_failed(sno_rtab(&s, n)));
+        assert(sno_is_null(sno_rpos(&s, n)));
+    }
+
+    // asking twice changes nothing
+    s = sno_bind("XY");
+    before = s;
+    assert(sno_is_null(sno_rpos(&s, 2)));
+    assert(sno_is_null(sno_rpos(&s, 2)));
+    assert(view_same(s, before));
+
+    // empty subject: RPOS(0) succeeds, RPOS(1) fails
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_rpos(&s, 0)));
+    assert(sno_failed(sno_rpos(&s, 1)));
+    assert(view_same(s, before));
+
+    // content-agnostic: NUL and high-bit chars count like any other
+    s.begin = z;
+    s.end = z + 3;
+    assert(sno_is_null(sno_rpos(&s, 3)));
+    assert(sno_failed(sno_rpos(&s, 2)));
+
+    // failure subject propagates
+    s = sno_fail();
+    assert(sno_failed(sno_rpos(&s, 0)));        // even RPOS(0)
+    assert(sno_failed(s));
+}
+
+/*
+ * Check order: argument errors first, then failure.
+ * A bad argument (n < 0, null set, NULL pointer) is a bug in the program and
+ * halts on entry even if an earlier match failed - see test_sno_halt().
+ * A failure view with *valid* arguments is normal flow: it just fails.
+ */
+static void test_fail_first() {
+    sno_view_t s;
+
+    // failure subject, valid arguments: fails, and stays failed
+    s = sno_fail();
+    assert(sno_failed(sno_len(&s, 1)));
+    assert(sno_failed(sno_len(&s, 0)));         // even LEN(0)
+    assert(sno_failed(sno_tab(&s, 0)));
+    assert(sno_failed(sno_rtab(&s, 0)));
+    assert(sno_failed(sno_rem(&s)));
+    assert(sno_failed(sno_rpos(&s, 0)));
+    assert(sno_failed(sno_any(&s, sno_bind("A"))));
+    assert(sno_failed(sno_notany(&s, sno_bind("A"))));
+    assert(sno_failed(s));
+
+    // failure set is a value, not a bad argument: fails
+    s = sno_bind("A");
+    assert(sno_failed(sno_any(&s, sno_fail())));
+    assert(sno_failed(sno_notany(&s, sno_fail())));
+    assert(view_eq(s, "A"));                    // subject untouched
+
+    // failure subject and failure set: fails
+    s = sno_fail();
+    assert(sno_failed(sno_any(&s, sno_fail())));
+    assert(sno_failed(sno_notany(&s, sno_fail())));
+}
+
+// Precondition violations: each must halt via sno_error() with the Green Book error shown.
+// Uncomment ONE line at a time; a pass is a halt with ERRORLEVEL = that error, not "Pass".
+// Check order: argument errors are checked on entry, *before* failure - so a bad argument
+// halts even when the subject is a failure view (the "beats failure" lines).
+static void test_sno_halt() {
+    sno_view_t s = sno_bind("X");
+    sno_view_t f = sno_fail();
+
+    // 0.1 character sets
+    //sno_char_in_cstr('a', NULL);                        // 10  charset NULL
+
+    // 2.8 LEN
+    //sno_len(NULL, 1);                                   // 10  subject pointer NULL
+    //sno_len(&s, -1);                                    // 14  n < 0
+    //sno_len(&f, -1);                                    // 14  n < 0 beats failure
+
+    // 2.10 ANY / NOTANY
+    //sno_any(NULL, sno_bind("A"));                       // 10  subject pointer NULL
+    //sno_any(&s, sno_null());                            //  4  null set
+    //sno_any(&f, sno_null());                            //  4  null set beats failure
+    //sno_notany(NULL, sno_bind("A"));                    // 10  subject pointer NULL
+    //sno_notany(&s, sno_null());                         //  4  null set
+    //sno_notany(&f, sno_null());                         //  4  null set beats failure
+
+    // 2.11 TAB / RTAB / REM
+    //sno_tab(NULL, 0);                                   // 10  subject pointer NULL
+    //sno_tab(&s, -1);                                    // 14  n < 0
+    //sno_tab(&f, -1);                                    // 14  n < 0 beats failure
+    //sno_rtab(NULL, 0);                                  // 10  subject pointer NULL
+    //sno_rtab(&s, -1);                                   // 14  n < 0
+    //sno_rtab(&f, -1);                                   // 14  n < 0 beats failure
+    //sno_rem(NULL);                                      // 10  subject pointer NULL, via RTAB
+
+    // 2.12 RPOS
+    //sno_rpos(NULL, 0);                                  // 10  subject pointer NULL
+    //sno_rpos(&s, -1);                                   // 14  n < 0
+    //sno_rpos(&f, -1);                                   // 14  n < 0 beats failure
+
+    (void)s;                                            // quiet when all are commented out
+    (void)f;
 }
 
 static void test_core() {
@@ -832,9 +826,6 @@ static void test_core() {
     test_char_in();
     test_bind();
     test_size();
-    test_unbind();
-    test_output();
-    test_input();
     test_trim();
     test_any_notany();
     test_ident_differ();
@@ -842,8 +833,11 @@ static void test_core() {
     test_rtab();
     test_rem();
     test_tab();
+    test_rpos();
+
+    test_fail_first();
     //test_sno_halt();
-    printf("Pass\n");
+    printf("Pass core\n");
 }
 
 #endif
