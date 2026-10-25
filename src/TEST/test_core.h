@@ -1164,7 +1164,7 @@ static void test_sno_errors() {
     assert(F_(sno_rpos(&s, -1))                 && sno_err_type() == 14);  // n < 0
     assert(F_(sno_rpos(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
 
-    assert(sno_err_count() == 0);               // all 28 raised, none skipped
+    assert(sno_err_count() == 0);               // all 29 raised, none skipped
     assert(view_eq(s, "X") && sno_failed(f));   // and no subject was moved
     sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
 }

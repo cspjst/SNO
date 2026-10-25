@@ -50,7 +50,6 @@ sno_view_t sno_error_at(sno_error_t e, const char* file, int line, const char* f
     fail.begin = fail.end = NULL;
     if (e <= SNO_ERROR_LAST_CONDITIONAL && err_limit > 0) {
         --err_limit;                                    // fail instead of halting
-        // printf("%s limit=%i\n", func, sno_err_count());
         return fail;
     }
     fprintf(stderr, "ERROR (%i) %s %s:%d: %s\n", e, SNO_ERROR_MESSAGES[e], file, line, func);
