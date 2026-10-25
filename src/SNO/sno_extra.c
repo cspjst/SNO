@@ -17,12 +17,12 @@ char* sno_unbind(sno_view_t v, char* buf, size_t size) {
 }
 
 // 1.3.4 IO
-int sno_output(FILE* f, sno_view_t v) {
+sno_view_t sno_output(FILE* f, sno_view_t v) {
     if(!f) sno_error(SNO_ERR_ILLEGAL_IO_UNIT);
-    if(sno_failed(v)) return 0;
+    if(sno_failed(v)) return sno_fail();
     sno_cursor_t p = v.begin;
     while(p < v.end && fputc((int)*p, f) != EOF) p++;
-    return p - v.begin;
+    return v;
 }
 
 sno_view_t sno_input(FILE* f, char* buf, size_t size) {

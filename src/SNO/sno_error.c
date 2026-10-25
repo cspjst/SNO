@@ -1,6 +1,7 @@
 #include "sno_error.h"
 
 #include <stdio.h>
+#include <stdlib.h>
 
 const char* const SNO_ERROR_MESSAGES[SNO_ERROR_COUNT + 1] = {
     "NO ERROR",                                         //  0
@@ -33,3 +34,24 @@ const char* const SNO_ERROR_MESSAGES[SNO_ERROR_COUNT + 1] = {
     "ERRONEOUS END STATEMENT",                          // 27
     "EXECUTION OF STATEMENT WITH A COMPILATION ERROR"   // 28
 };
+
+static int err_limit = 0;                               // &ERRLIMIT
+static sno_error_t err_type = SNO_ERR_NONE;             // &ERRTYPE
+
+void sno_err_limit(int n) { err_limit = n > 0 ? n : 0; err_type = SNO_ERR_NONE; }
+
+int sno_err_count() { return err_limit; }
+
+sno_error_t sno_err_type() { return err_type; }
+
+sno_view_t sno_error_at(sno_error_t e, const char* file, int line, const char* func) {
+    err_type = e;
+    sno_view_t fail;
+    fail.begin = fail.end = NULL;
+    if (e <= SNO_ERROR_LAST_CONDITIONAL && err_limit > 0) {
+        --err_limit;                                    // fail instead of halting
+        return fail;
+    }
+    fprintf(stderr, "ERROR (%i) %s %s:%d: %s\n", e, SNO_ERROR_MESSAGES[e], file, line, func);
+    exit(e);
+}

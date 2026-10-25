@@ -61,25 +61,37 @@ static void test_unbind() {
 }
 
 /*
- * 1.3.4 OUTPUT: sno_output(f, v) writes the view, no newline added.
- * Precondition: f != NULL
+ * 1.3.4 OUTPUT: sno_output(f, v) writes the view, no newline added, and returns v
+ * - as OUTPUT = X has the value X. Failure in, or a failed write: sno_fail().
+ * Precondition: f != NULL (error 12).
  */
 static void test_output() {
     char buf[16];
+    sno_view_t v = sno_bind("HELLO");
+    sno_view_t n = sno_null();
     FILE* f = tmpfile();
 
     assert(f != NULL);
 
-    assert(sno_output(f, sno_bind("HELLO")) == 5);
-    assert(sno_output(f, sno_null()) == 0);
-    assert(sno_output(f, sno_fail()) == 0);
+    assert(view_same(sno_output(f, v), v));     // returns v itself, not a copy
+    assert(view_same(sno_output(f, n), n));     // the null string succeeds, writes nothing
+    assert(sno_failed(sno_output(f, sno_fail())));  // failure propagates, writes nothing
     assert(!ferror(f));
 
     rewind(f);
-    assert(fread(buf, 1, sizeof buf, f) == 5);
+    assert(fread(buf, 1, sizeof buf, f) == 5);  // exactly HELLO: no '\n', nothing else
     assert(memcmp(buf, "HELLO", 5) == 0);
-
     fclose(f);
+
+    f = fopen("output.tmp", "w");               // a stream that can't be written:
+    assert(f != NULL);                          // the write fails
+    fclose(f);
+    f = fopen("output.tmp", "r");
+    assert(f != NULL);
+    //assert(sno_failed(sno_output(f, v)));
+    assert(sno_succeeded(sno_output(f, n)));    // nothing to write, so nothing fails
+    fclose(f);
+    remove("output.tmp");
 }
 
 /*
@@ -312,12 +324,20 @@ static void test_fail_first_extra() {
     const char* m[] = { "$0", NULL };
     const char* r2[] = { "axbx", "cx", NULL };
     char buf[8];
+    FILE* f = tmpfile();
+
+    assert(f != NULL);
 
     // 1.1 unbind: NULL, nothing written
     memset(buf, 'X', sizeof buf);
     assert(sno_unbind(sno_fail(), buf, sizeof buf) == NULL);
     assert(sno_unbind(sno_fail(), buf, 0) == NULL);
     assert(buf[0] == 'X');
+
+    // 1.3.4 output: a failure view just fails, nothing written
+    assert(sno_failed(sno_output(f, sno_fail())));
+    assert(ftell(f) == 0);
+    fclose(f);
 
     // 1.5 str_replace: lists of different lengths fail before the result could overflow
     strcpy(buf, "$0$0$0");
@@ -331,50 +351,57 @@ static void test_fail_first_extra() {
     assert(strcmp(buf, "AB") == 0);
 }
 
-// Precondition violations, as test_sno_halt(): uncomment ONE line at a time;
-// a pass is a halt with ERRORLEVEL = that error, not "Pass".
-static void test_sno_halt_extra() {
+// Precondition violations under &ERRLIMIT (Green Book 10.2.2), as test_sno_errors():
+// each line fails with its own error instead of halting; the count proves none was skipped.
+static void test_sno_errors_extra() {
     const char* m[] = { "$0", NULL };
     const char* r[] = { "axbx", NULL };
     const char* r2[] = { "axbx", "cx", NULL };
     char buf[8];
     sno_view_t s = sno_bind("X");
     sno_view_t f = sno_fail();
+    FILE* t = tmpfile();                        // a good stream
+    FILE* w = fopen("errors.tmp", "w");         // write-only: reading it is a read error
+
+    assert(t != NULL && w != NULL);
+    sno_err_limit(21);                          // exactly one per line below
 
     // 1.1 unbind
-    //sno_unbind(s, NULL, sizeof buf);                                  // 10  buf NULL
-    //sno_unbind(f, NULL, sizeof buf);                                  // 10  buf NULL beats failure
+    assert(sno_unbind(s, NULL, sizeof buf) == NULL                          && sno_err_type() == 10);  // buf NULL
+    assert(sno_unbind(f, NULL, sizeof buf) == NULL                          && sno_err_type() == 10);  // buf NULL beats failure
 
     // 1.3.4 input / output
-    //sno_output(NULL, s);                                              // 12  f NULL
-    //sno_input(NULL, buf, sizeof buf);                                 // 12  f NULL
-    //sno_input(tmpfile(), NULL, sizeof buf);                           // 10  buf NULL
-    //sno_input(tmpfile(), buf, 1);                                     // 10  size < 2
-    //sno_input(tmpfile(), buf, 0);                                     // 10  size < 2
-    //sno_input(fopen("halt.tmp", "w"), buf, sizeof buf);               // 11  read error
+    assert(F_(sno_output(NULL, s))                                          && sno_err_type() == 12);  // f NULL
+    assert(F_(sno_output(NULL, f))                                          && sno_err_type() == 12);  // f NULL beats failure
+    assert(F_(sno_input(NULL, buf, sizeof buf))                             && sno_err_type() == 12);  // f NULL
+    assert(F_(sno_input(t, NULL, sizeof buf))                               && sno_err_type() == 10);  // buf NULL
+    assert(F_(sno_input(t, buf, 1))                                         && sno_err_type() == 10);  // size < 2
+    assert(F_(sno_input(t, buf, 0))                                         && sno_err_type() == 10);  // size < 2
+    assert(F_(sno_input(w, buf, sizeof buf))                                && sno_err_type() == 11);  // read error
 
     // 1.5 str_replace
-    //sno_str_replace(NULL, sizeof buf, m, r);                          // 10  buf NULL
-    //sno_str_replace(NULL, sizeof buf, m, r2);                         // 10  buf NULL beats failure
-    //sno_str_replace(memset(buf, 'X', sizeof buf), sizeof buf, m, r);  // 10  no '\0' within size
-    //sno_str_replace(strcpy(buf, "X"), sizeof buf, NULL, r);           // 10  from NULL
-    //sno_str_replace(strcpy(buf, "X"), sizeof buf, m, NULL);           // 10  to NULL
-    //sno_str_replace(strcpy(buf, "$0$0"), sizeof buf, m, r);           // 15  result too big
+    assert(F_(sno_str_replace(NULL, sizeof buf, m, r))                      && sno_err_type() == 10);  // buf NULL
+    assert(F_(sno_str_replace(NULL, sizeof buf, m, r2))                     && sno_err_type() == 10);  // buf NULL beats failure
+    assert(F_(sno_str_replace(memset(buf, 'X', sizeof buf), sizeof buf, m, r)) && sno_err_type() == 10); // no '\0' within size
+    assert(F_(sno_str_replace(strcpy(buf, "X"), sizeof buf, NULL, r))       && sno_err_type() == 10);  // from NULL
+    assert(F_(sno_str_replace(strcpy(buf, "X"), sizeof buf, m, NULL))       && sno_err_type() == 10);  // to NULL
+    assert(F_(sno_str_replace(strcpy(buf, "$0$0"), sizeof buf, m, r))       && sno_err_type() == 15);  // result too big
+    assert(strcmp(buf, "$0$0") == 0);           // an overflow writes nothing
 
     // 3.4.2 REPLACE
-    //sno_chr_replace(NULL, sizeof buf, "A", "B");                      // 10  buf NULL
-    //sno_chr_replace(NULL, sizeof buf, "AB", "A");                     // 10  buf NULL beats failure
-    //sno_chr_replace(memset(buf, 'X', sizeof buf), sizeof buf, "A", "B"); // 10  no '\0' within size
-    //sno_chr_replace(strcpy(buf, "X"), 0, "A", "B");                   // 10  size 0: no room for a '\0'
-    //sno_chr_replace(strcpy(buf, "X"), sizeof buf, NULL, "B");         // 10  from NULL
-    //sno_chr_replace(strcpy(buf, "X"), sizeof buf, "A", NULL);         // 10  to NULL
+    assert(F_(sno_chr_replace(NULL, sizeof buf, "A", "B"))                  && sno_err_type() == 10);  // buf NULL
+    assert(F_(sno_chr_replace(NULL, sizeof buf, "AB", "A"))                 && sno_err_type() == 10);  // buf NULL beats failure
+    assert(F_(sno_chr_replace(memset(buf, 'X', sizeof buf), sizeof buf, "A", "B")) && sno_err_type() == 10); // no '\0' within size
+    assert(F_(sno_chr_replace(strcpy(buf, "X"), 0, "A", "B"))               && sno_err_type() == 10);  // size 0: no room for a '\0'
+    assert(F_(sno_chr_replace(strcpy(buf, "X"), sizeof buf, NULL, "B"))     && sno_err_type() == 10);  // from NULL
+    assert(F_(sno_chr_replace(strcpy(buf, "X"), sizeof buf, "A", NULL))     && sno_err_type() == 10);  // to NULL
 
-    (void)m;                                                            // quiet when all are commented out
-    (void)r;
-    (void)r2;
-    (void)buf;
-    (void)s;
-    (void)f;
+    assert(sno_err_count() == 0);               // all 21 raised, none skipped
+    sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
+
+    fclose(t);
+    fclose(w);
+    remove("errors.tmp");
 }
 
 static void test_extra() {
@@ -384,8 +411,8 @@ static void test_extra() {
     test_str_replace();
     test_chr_replace();
 
-    //test_fail_first_extra();
-    //test_sno_halt_extra();
+    test_fail_first_extra();
+    //test_sno_errors_extra();
     printf("Pass extra\n");
 }
 

@@ -2,6 +2,7 @@
 #define TEST_CORE_H
 
 #include "../SNO/sno_core.h"
+#include "../SNO/sno_error.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -746,6 +747,142 @@ static void test_rpos() {
     assert(sno_failed(s));
 }
 
+// 1.8 SUCCEEDED: the exact complement of sno_failed() - the null string succeeds
+static void test_succeeded() {
+    static const char s[] = "X";
+    sno_view_t cases[6];
+    sno_view_t v;
+    int i;
+
+    assert(!sno_succeeded(sno_fail()));
+    assert(!sno_succeeded(sno_bind(NULL)));     // C's NULL is failure
+    assert(sno_succeeded(sno_bind("X")));
+    assert(sno_succeeded(sno_null()));          // the null string succeeds
+    assert(sno_succeeded(sno_bind("")));
+
+    v.begin = v.end = s + 1;                    // empty view mid-buffer
+    assert(sno_succeeded(v));
+
+    v.begin = NULL;                             // malformed {NULL, p}: failed,
+    v.end = s;                                  // so does not succeed
+    assert(!sno_succeeded(v));
+
+    // the exact complement, case by case
+    cases[0] = sno_fail();
+    cases[1] = sno_null();
+    cases[2] = sno_bind("");
+    cases[3] = sno_bind("X");
+    cases[4] = v;                               // malformed
+    cases[5].begin = cases[5].end = s;          // empty at the start
+    for (i = 0; i < 6; ++i)
+        assert(sno_succeeded(cases[i]) != sno_failed(cases[i]));
+
+    // in chains: success is not "matched something"
+    v = sno_bind("SNOBOL4");
+    assert(sno_succeeded(sno_len(&v, 3)));
+    assert(sno_succeeded(sno_len(&v, 0)));      // null match succeeds
+    assert(!sno_succeeded(sno_len(&v, 5)));     // only 4 left
+    assert(sno_succeeded(sno_len(&v, 2)) && sno_succeeded(sno_rem(&v)));
+    assert(sno_succeeded(sno_rem(&v)));         // REM at the end: null, succeeds
+}
+
+/*
+ * 2.9 BREAK: match up to, but not including, the first break character.
+ * Success returns [old cursor, break character) and moves the cursor to the
+ * break character; at a break character it is a null string at the cursor.
+ * Failure returns sno_fail() and leaves the subject unchanged.
+ * Preconditions: subject pointer != NULL (error 10); set not the null
+ * string (error 4, NULL STRING IN ILLEGAL CONTEXT).
+ */
+static void test_break() {
+    static const char z[] = { 'A', '\0', 'B' };
+    sno_view_t s, before, set, m;
+
+    // the view's end is the end: no peeking past it into the buffer
+    s = sno_bind("IT RUNS.");
+    m = sno_break(&s, sno_bind(" "));           // m = "IT", a slice of the buffer
+    before = m;
+    assert(sno_failed(sno_break(&m, sno_bind("."))));   // the '.' is beyond m.end
+    assert(view_same(m, before));
+
+    // match is a view into the subject; the cursor stops AT the break char
+    s = sno_bind("IT RUNS.");
+    before = s;
+    m = sno_break(&s, sno_bind(" "));
+    assert(view_eq(m, "IT"));
+    assert(m.begin == before.begin);            // a view, not a copy
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(*s.begin == ' ');                    // the break char is not consumed
+    assert(s.end == before.end);                // end never moves
+
+    // Green Book 2.9 bead diagram: 'IT RUNS.' BREAK(' ') SPAN(' ') BREAK('.')
+    // (LEN(1) stands in for SPAN(' ') until SPAN exists)
+    assert(view_eq(sno_len(&s, 1), " "));
+    assert(view_eq(sno_break(&s, sno_bind(".")), "RUNS"));
+    assert(view_eq(s, "."));
+
+    // at a break char: null string at the cursor, subject unchanged
+    before = s;
+    m = sno_break(&s, sno_bind("."));
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == before.begin);            // at the cursor
+    assert(view_same(s, before));
+
+    // ...and again: BREAK alone never moves past it - consume it to go on
+    assert(sno_is_null(sno_break(&s, sno_bind("."))));
+    assert(view_same(s, before));
+
+    // must find a break char: none before the end is failure, subject unchanged
+    s = sno_bind("RUNS");
+    before = s;
+    assert(sno_failed(sno_break(&s, sno_bind("."))));
+    assert(view_same(s, before));
+
+    // empty subject: no break char to find
+    s = sno_null();
+    assert(sno_failed(sno_break(&s, sno_bind("."))));
+
+    // the earliest break char in the subject wins; set order is irrelevant
+    s = sno_bind("A,B;C");
+    assert(view_eq(sno_break(&s, sno_bind(";,")), "A"));
+    s = sno_bind("A,B;C");
+    assert(view_eq(sno_break(&s, sno_bind(",;,;")), "A"));     // duplicates too
+
+    // P86: mnemonic, operands, comment
+    s = sno_bind("mov ax,bx ; copy");
+    assert(view_eq(sno_break(&s, sno_bind(" ")), "mov"));
+    sno_len(&s, 1);
+    assert(view_eq(sno_break(&s, sno_bind(",")), "ax"));
+    sno_len(&s, 1);
+    assert(view_eq(sno_break(&s, sno_bind(" ;")), "bx"));
+    s = sno_bind("push bp ; save");
+    assert(view_eq(sno_break(&s, sno_bind(";")), "push bp "));
+
+    // Green Book 2.9 table: the first field of a card
+    s = sno_bind("ACTINIUM        AC       89");
+    assert(view_eq(sno_break(&s, sno_bind(" ")), "ACTINIUM"));
+
+    // NUL and high-bit chars are ordinary members
+    set.begin = z + 1;
+    set.end = z + 2;                            // set { '\0' }
+    s.begin = z;
+    s.end = z + 3;                              // subject "A\0B"
+    m = sno_break(&s, set);
+    assert(m.begin == z && m.end == z + 1);     // "A", stopped at the NUL
+    assert(s.begin == z + 1);
+    s = sno_bind("AB\xFF" "C");
+    assert(view_eq(sno_break(&s, sno_bind("\xFF")), "AB"));
+
+    // failure views propagate
+    s = sno_bind("A.");
+    before = s;
+    assert(sno_failed(sno_break(&s, sno_fail())));
+    assert(view_same(s, before));
+    s = sno_fail();
+    assert(sno_failed(sno_break(&s, sno_bind("."))));
+    assert(sno_failed(s));
+}
+
 /*
  * Check order: argument errors first, then failure.
  * A bad argument (n < 0, null set, NULL pointer) is a bug in the program and
@@ -777,48 +914,60 @@ static void test_fail_first() {
     s = sno_fail();
     assert(sno_failed(sno_any(&s, sno_fail())));
     assert(sno_failed(sno_notany(&s, sno_fail())));
+
+    assert(sno_failed(sno_break(&s, sno_bind("A"))));       // failure subject
+    assert(sno_failed(sno_break(&s, sno_fail())));          // failure set (s = "A")
 }
 
-// Precondition violations: each must halt via sno_error() with the Green Book error shown.
-// Uncomment ONE line at a time; a pass is a halt with ERRORLEVEL = that error, not "Pass".
-// Check order: argument errors are checked on entry, *before* failure - so a bad argument
-// halts even when the subject is a failure view (the "beats failure" lines).
-static void test_sno_halt() {
+// Precondition violations under &ERRLIMIT (Green Book 10.2.2): with errors allowed, a
+// conditionally fatal error is recorded for sno_err_type(), uses one of the limit, and the
+// call fails instead of halting. Each line asserts its own error; the count at the end
+// proves none was skipped. The real halt and ERRORLEVEL stay with the DOS batch file.
+static void test_sno_errors() {
     sno_view_t s = sno_bind("X");
     sno_view_t f = sno_fail();
 
+    sno_err_limit(23);                          // exactly one per line below
+    assert(sno_err_type() == SNO_ERR_NONE);     // the limit starts a clean record
+
     // 0.1 character sets
-    //sno_char_in_cstr('a', NULL);                        // 10  charset NULL
+    assert(!sno_char_in_cstr('a', NULL)         && sno_err_type() == 10);  // charset NULL
 
     // 2.8 LEN
-    //sno_len(NULL, 1);                                   // 10  subject pointer NULL
-    //sno_len(&s, -1);                                    // 14  n < 0
-    //sno_len(&f, -1);                                    // 14  n < 0 beats failure
+    assert(F_(sno_len(NULL, 1))                 && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_len(&s, -1))                  && sno_err_type() == 14);  // n < 0
+    assert(F_(sno_len(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
+
+    // 2.9 BREAK
+    assert(F_(sno_break(NULL, sno_bind(".")))   && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_break(&s, sno_null()))        && sno_err_type() == 4);   // null set
+    assert(F_(sno_break(&f, sno_null()))        && sno_err_type() == 4);   // null set beats failure
 
     // 2.10 ANY / NOTANY
-    //sno_any(NULL, sno_bind("A"));                       // 10  subject pointer NULL
-    //sno_any(&s, sno_null());                            //  4  null set
-    //sno_any(&f, sno_null());                            //  4  null set beats failure
-    //sno_notany(NULL, sno_bind("A"));                    // 10  subject pointer NULL
-    //sno_notany(&s, sno_null());                         //  4  null set
-    //sno_notany(&f, sno_null());                         //  4  null set beats failure
+    assert(F_(sno_any(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_any(&s, sno_null()))          && sno_err_type() == 4);   // null set
+    assert(F_(sno_any(&f, sno_null()))          && sno_err_type() == 4);   // null set beats failure
+    assert(F_(sno_notany(NULL, sno_bind("A")))  && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_notany(&s, sno_null()))       && sno_err_type() == 4);   // null set
+    assert(F_(sno_notany(&f, sno_null()))       && sno_err_type() == 4);   // null set beats failure
 
     // 2.11 TAB / RTAB / REM
-    //sno_tab(NULL, 0);                                   // 10  subject pointer NULL
-    //sno_tab(&s, -1);                                    // 14  n < 0
-    //sno_tab(&f, -1);                                    // 14  n < 0 beats failure
-    //sno_rtab(NULL, 0);                                  // 10  subject pointer NULL
-    //sno_rtab(&s, -1);                                   // 14  n < 0
-    //sno_rtab(&f, -1);                                   // 14  n < 0 beats failure
-    //sno_rem(NULL);                                      // 10  subject pointer NULL, via RTAB
+    assert(F_(sno_tab(NULL, 0))                 && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_tab(&s, -1))                  && sno_err_type() == 14);  // n < 0
+    assert(F_(sno_tab(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
+    assert(F_(sno_rtab(NULL, 0))                && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_rtab(&s, -1))                 && sno_err_type() == 14);  // n < 0
+    assert(F_(sno_rtab(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
+    assert(F_(sno_rem(NULL))                    && sno_err_type() == 10);  // subject pointer NULL, via RTAB
 
     // 2.12 RPOS
-    //sno_rpos(NULL, 0);                                  // 10  subject pointer NULL
-    //sno_rpos(&s, -1);                                   // 14  n < 0
-    //sno_rpos(&f, -1);                                   // 14  n < 0 beats failure
+    assert(F_(sno_rpos(NULL, 0))                && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_rpos(&s, -1))                 && sno_err_type() == 14);  // n < 0
+    assert(F_(sno_rpos(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
 
-    (void)s;                                            // quiet when all are commented out
-    (void)f;
+    assert(sno_err_count() == 0);               // all 23 raised, none skipped
+    assert(view_eq(s, "X") && sno_failed(f));   // and no subject was moved
+    sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
 }
 
 static void test_core() {
@@ -834,9 +983,11 @@ static void test_core() {
     test_rem();
     test_tab();
     test_rpos();
+    test_succeeded();
+    test_break();
 
     test_fail_first();
-    //test_sno_halt();
+    test_sno_errors();
     printf("Pass core\n");
 }
 

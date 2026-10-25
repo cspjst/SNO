@@ -33,6 +33,21 @@
 #include <stddef.h>
 #include <stdbool.h>
 
+/**
+ * 1.8 C S_
+ * Shorthand for sno_succeeded(v) - reads like SNOBOL's :S column.
+ * @note The null string succeeds: S_ is SNOBOL's :S, not "matched something".
+ * @see     sno_succeeded(), F_()
+ */
+#define S_(v) sno_succeeded(v)
+
+/**
+ * 1.8 C F_
+ * Shorthand for sno_failed(v) - reads like SNOBOL's :F column.
+ * @see     sno_failed(), S_()
+ */
+#define F_(v) sno_failed(v)
+
 // Chapter 0 - C Support (no Green Book equivalent)
 
 // 0.1 Character Sets
@@ -140,6 +155,22 @@ sno_view_t sno_fail();
  */
 static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
 
+/**
+ * 1.8 C SUCCEEDED
+ * Test whether a view represents success - the complement of sno_failed().
+ *
+ * Returns true:
+ *  + begin != NULL - any readable view, including the null string.
+ * Returns false:
+ *  + begin == NULL - a failure view, including a malformed {NULL, p}.
+ *
+ * @note
+ *  + The null string succeeds: success is SNOBOL's :S, not "matched something".
+ *  + Reads chains without negation - sno_succeeded(sno_len(&u, 2)) && sno_succeeded(sno_rem(&u)).
+ * @see     sno_failed(), sno_fail(), sno_is_null()
+ */
+static inline bool sno_succeeded(sno_view_t v) { return v.begin != NULL; }
+
 // 1.10 Functions
 
 /**
@@ -184,6 +215,30 @@ sno_view_t sno_trim(sno_view_t v);
  * @see     sno_rem(), sno_tab()
  */
 sno_view_t sno_len(sno_view_t* u, int n);
+
+/**
+ * 2.9 SNOBOL BREAK(string)
+ * Match up to, but not including, the first character of the subject (u) that appears in the break set (v).
+ *
+ * @pre
+ *  + u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *  + v is not the null string, else error 4 NULL STRING IN ILLEGAL CONTEXT
+ *
+ * Success: returns the matched view [old cursor, break character); the cursor moves to the break character.
+ *  + The cursor is at a break character: returns a null string at the cursor; the subject is unchanged.
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + No break character before the end of the subject - "BREAK must find a break character, or it fails".
+ *  + The subject is empty.
+ *  + The subject or set is a failure view.
+ *
+ * @warning Does not consume the break character: a second BREAK on the same set matches the null string
+ *          again - move past it with LEN(1), ANY or SPAN before breaking again.
+ * @note
+ *  + The earliest break character in the subject wins; order and duplicates in the set are irrelevant.
+ *  + NUL and high-bit characters are ordinary members.
+ * @see     sno_span(), sno_notany(), sno_next_lit()
+ */
+sno_view_t sno_break(sno_view_t* u, sno_view_t v);
 
 /**
  * 2.10 SNOBOL ANY(string)

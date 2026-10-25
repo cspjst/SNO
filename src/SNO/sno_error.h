@@ -2,14 +2,20 @@
  * @author Jeremy Simon Thornton
  * @copyright Copyright (c) 2026 Jeremy Simon Thornton
  * @license MIT License — see LICENSE file or https://opensource.org/licenses/MIT
- * @version 0.3
+ * @version 0.4
  *
  * @brief SNOBOL4 Program Error Messages
+ *
+ * A conditionally fatal error (1..16) halts unless errors are allowed: sno_err_limit(n)
+ * is SNOBOL's &ERRLIMIT = n. While the limit is above zero, each such error uses one up,
+ * is recorded for sno_err_type() (&ERRTYPE), and the call that raised it fails instead.
+ * Unconditionally fatal errors (17..28) always halt. Halting prints the message and exits
+ * with the error number, so a batch file can test ERRORLEVEL (Green Book 10.2.2).
  */
 #ifndef SNO_ERROR_H
 #define SNO_ERROR_H
 
-#include <stdlib.h>
+#include "sno_types.h"
 
 /**
  * Green Book 10.2.3 Program Error Messages
@@ -52,14 +58,49 @@ typedef enum {
 
 extern const char* const SNO_ERROR_MESSAGES[SNO_ERROR_COUNT + 1];
 
-// Source - https://stackoverflow.com/a/67421741
-// Posted by mediocrevegetable1, modified by community. See post 'Timeline' for change history
-// Retrieved 2026-10-21, License - CC BY-SA 4.0
+/**
+ * 10.2.2 SNOBOL &ERRLIMIT
+ * Allow n conditionally fatal errors before an error halts; clears sno_err_type().
+ *
+ * @note
+ *  + The initial limit is 0, as SNOBOL: every error halts until this is called.
+ *  + n <= 0 restores halting on every error.
+ * @see     sno_err_count(), sno_err_type()
+ */
+void sno_err_limit(int n);
 
-#define sno_error(e)                                   \
-        (void) (fprintf(stderr, "ERROR (%i) %s %s:%d: %s\n",   \
-        e, SNO_ERROR_MESSAGES[e], __FILE__, __LINE__, __FUNCTION__), exit(e))
+/**
+ * 10.2.2 SNOBOL &ERRLIMIT
+ * Return how many conditionally fatal errors are still allowed before an error halts.
+ *
+ * @note    Each error raised under the limit uses one up: after sno_err_limit(n) and k errors, n - k.
+ * @see     sno_err_limit()
+ */
+int sno_err_count();
 
+/**
+ * 10.2.2 SNOBOL &ERRTYPE
+ * Return the number of the last error raised, or SNO_ERR_NONE.
+ *
+ * @note
+ *  + Sticky, as SNOBOL: not cleared by later calls that succeed - sno_err_limit() clears it.
+ *  + Read-only, as SNOBOL's protected keyword: only sno_error() sets it.
+ * @see     sno_err_limit()
+ */
+sno_error_t sno_err_type();
 
+/**
+ * 10.2.3 C ERROR
+ * Raise error e where it happened: record it, then fail if the limit allows, else print and halt.
+ *
+ * @note
+ *  + Returns only for a conditionally fatal error under the limit - the caller must then
+ *    return its failure value: "failure occurs in the expression with the error" (10.2.2).
+ *  + Halting prints e, its message, file, line and function, and exits with e as the ERRORLEVEL.
+ * @see     sno_err_limit(), sno_err_type()
+ */
+#define sno_error(e) sno_error_at((e), __FILE__, __LINE__, __func__)
+
+sno_view_t sno_error_at(sno_error_t e, const char* file, int line, const char* func);
 
 #endif

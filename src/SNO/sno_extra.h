@@ -33,6 +33,8 @@
 
 #include <stdio.h>
 
+
+
 /**
  * 1.1 C UNBIND
  * Unbind the view - copy a view into buf as a C string.
@@ -57,14 +59,33 @@ char* sno_unbind(sno_view_t v, char* buf, size_t size);
  *
  * @pre     f != NULL, else error 12 ILLEGAL I/O UNIT
  *
- * Success: returns the number of bytes written.
- *  + A null string or failure view writes nothing and returns 0.
- * Failure: returns fewer bytes than the view's size.
- *  + the error indicator for the stream is set (test with ferror).
+ * Success: returns v - as OUTPUT = X has the value X.
+ *  + A null string writes nothing and succeeds.
+ * Failure: returns sno_fail().
+ *  + v is a failure view - nothing is written; failure propagates.
+ *  + The write fails - the stream's error indicator is set (test with ferror).
  *
- * @see     sno_input()
+ * @note    Returns the view, not a byte count: test the write with F_(sno_output(f, v)).
+ * @see     sno_input(), sno_out()
  */
-int sno_output(FILE* f, sno_view_t v);
+sno_view_t sno_output(FILE* f, sno_view_t v);
+
+/**
+ * 1.3.4 SNOBOL OUTPUT
+ * Write a view to stdout; no newline is added - SNOBOL's OUTPUT, bound to the standard unit.
+ *
+ * Success: returns v - as OUTPUT = X has the value X.
+ *  + A null string writes nothing and succeeds.
+ * Failure: returns sno_fail().
+ *  + v is a failure view - nothing is written; failure propagates.
+ *  + The write fails - stdout's error indicator is set (test with ferror).
+ *
+ * @note
+ *  + sno_output(stdout, v): stdout is never NULL, so error 12 cannot occur.
+ *  + End a line explicitly - sno_out(v), sno_out(SNO_NEWLINE).
+ * @see     sno_output(), SNO_NEWLINE, SNO_TAB, SNO_SPACE
+ */
+static inline sno_view_t sno_out(sno_view_t v) { return sno_output(stdout, v); }
 
 /**
  * 1.3.4 SNOBOL INPUT
@@ -89,6 +110,8 @@ int sno_output(FILE* f, sno_view_t v);
  * @see     sno_output(), sno_trim()
  */
 sno_view_t sno_input(FILE* f, char* buf, size_t size);
+
+static inline sno_view_t sno_in(char* buf, size_t size) { return sno_input(stdin, buf, size); }
 
 /**
  * 1.5 C STRING REPLACE
