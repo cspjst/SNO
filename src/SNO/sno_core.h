@@ -150,6 +150,29 @@ sno_view_t sno_null();
  */
 static inline bool sno_is_null(sno_view_t v) { return v.begin != NULL && v.begin == v.end; }
 
+/**
+ * 1.4 C LIT
+ * Match the literal view lit at the cursor of the subject (u) - SNOBOL's implicit string match, made explicit.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns the matched view [old cursor, old cursor + size); the cursor advances by its size.
+ *  + lit is the null string: matches the null string at the cursor; the subject is unchanged.
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + The subject at the cursor doesn't begin with lit - including a partial match.
+ *  + Fewer characters remain than lit holds.
+ *  + The subject or lit is a failure view.
+ *
+ * @warning Anchored: only a match at the cursor counts. To skip ahead to the next occurrence use sno_next_lit().
+ * @note
+ *  + lit can be any view - a bound literal, a constant, or a back-reference to text captured earlier.
+ *  + The match is a view of the subject, never of lit.
+ *  + Alternation is || with no save/restore: a failed sno_lit leaves the cursor for the next alternative.
+ *  + Compares bytes, case and all; NUL is an ordinary character in both.
+ * @see     sno_any_lit(), sno_next_lit(), sno_ident(), sno_bind()
+ */
+sno_view_t sno_lit(sno_view_t* u, sno_view_t lit);
+
 // 1.8 Flow Control
 
 /**

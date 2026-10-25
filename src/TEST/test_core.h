@@ -2,7 +2,9 @@
 #define TEST_CORE_H
 
 #include "../SNO/sno_core.h"
+#include "../SNO/sno_extra.h"
 #include "../SNO/sno_error.h"
+#include "../SNO/sno_constants.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -934,6 +936,122 @@ static void test_bind_list() {
 }
 
 /*
+ * 1.4 LIT: match a literal view at the cursor - SNOBOL's implicit string match.
+ * Success returns the matched view [old cursor, old cursor + size) and advances
+ * the cursor by its size. Failure returns sno_fail() and leaves the subject unchanged.
+ * Precondition: subject pointer != NULL (error 10).
+ */
+static void test_lit() {
+    static const char z[] = { 'A', '\0', 'B' };
+    static const char nul[] = { '\0' };
+    sno_view_t s, before, m, lit;
+
+    // match is a view into the subject, cursor advances by its size
+    s = sno_bind("mov ax,bx");
+    before = s;
+    m = sno_lit(&s, sno_bind("mov"));
+    assert(view_eq(m, "mov"));
+    assert(m.begin == before.begin);            // a view of the subject, not of lit
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(s.end == before.end);                // end never moves
+    assert(view_eq(s, " ax,bx"));
+
+    // chains: each literal starts where the last one ended
+    assert(view_eq(sno_lit(&s, sno_bind(" ")), " "));
+    assert(view_eq(sno_lit(&s, sno_bind("ax")), "ax"));
+    assert(view_eq(sno_lit(&s, sno_bind(",")), ","));
+    assert(view_eq(sno_lit(&s, sno_bind("bx")), "bx"));
+    assert(sno_is_null(s));
+
+    // anchored: present later in the subject is not at the cursor - failure
+    s = sno_bind("push bp");
+    before = s;
+    assert(sno_failed(sno_lit(&s, sno_bind("bp"))));
+    assert(view_same(s, before));
+
+    // a partial match fails and moves nothing
+    s = sno_bind("ABD");
+    before = s;
+    assert(sno_failed(sno_lit(&s, sno_bind("ABC"))));
+    assert(view_same(s, before));
+
+    // longer than the subject, or case differs: failure
+    s = sno_bind("AB");
+    before = s;
+    assert(sno_failed(sno_lit(&s, sno_bind("ABC"))));
+    assert(sno_failed(sno_lit(&s, sno_bind("ab"))));
+    assert(view_same(s, before));
+
+    // the whole subject - even the subject itself as the literal
+    s = sno_bind("PUSHI");
+    assert(view_eq(sno_lit(&s, s), "PUSHI"));
+    assert(sno_is_null(s));
+
+    // the null string matches the null string at the cursor, even on an empty subject
+    s = sno_bind("AB");
+    before = s;
+    m = sno_lit(&s, sno_null());
+    assert(sno_is_null(m) && m.begin == before.begin);
+    assert(view_same(s, before));
+    s = sno_null();
+    assert(sno_is_null(sno_lit(&s, sno_null())));
+    assert(sno_failed(sno_lit(&s, sno_bind("A"))));     // but nothing else matches there
+
+    // back-reference: match what was captured earlier
+    s = sno_bind("ab:ab");
+    m = sno_break(&s, sno_bind(":"));           // capture "ab"
+    sno_len(&s, 1);                             // past the ':'
+    assert(view_eq(sno_lit(&s, m), "ab"));
+    assert(sno_is_null(s));
+    s = sno_bind("ab:ac");
+    m = sno_break(&s, sno_bind(":"));
+    sno_len(&s, 1);
+    before = s;
+    assert(sno_failed(sno_lit(&s, m)));
+    assert(view_same(s, before));
+
+    // alternation is ||: a failed literal leaves the cursor for the next one
+    s = sno_bind("BERATES");
+    assert(S_(sno_lit(&s, sno_bind("GE"))) || S_(sno_lit(&s, sno_bind("FRE")))
+        || S_(sno_lit(&s, sno_bind("BE"))));
+    assert(view_eq(s, "RATES"));
+
+    // the view's end is the end: no peeking past it into the buffer
+    s = sno_bind("IT RUNS.");
+    m = sno_break(&s, sno_bind(" "));           // m = "IT", a slice of the buffer
+    before = m;
+    assert(sno_failed(sno_lit(&m, sno_bind("IT "))));
+    assert(view_same(m, before));
+
+    // NUL is an ordinary char in a view: a literal can hold it and match it
+    s.begin = z;
+    s.end = z + 3;                              // subject "A\0B"
+    lit.begin = z;
+    lit.end = z + 2;                            // literal "A\0"
+    m = sno_lit(&s, lit);
+    assert(m.begin == z && m.end == z + 2);
+    lit.begin = nul;
+    lit.end = nul + 1;                          // literal "\0", a different buffer
+    assert(sno_failed(sno_lit(&s, lit)));       // 'B' is not NUL
+    s.begin = z + 1;                            // subject "\0B"
+    assert(sno_size(sno_lit(&s, lit)) == 1);
+
+    // high-bit chars are ordinary
+    s = sno_bind("\xFF\xFE" "AB");
+    assert(view_eq(sno_lit(&s, sno_bind("\xFF\xFE")), "\xFF\xFE"));
+
+    // failure views: a failure literal is a value - it just fails
+    s = sno_bind("AB");
+    before = s;
+    assert(sno_failed(sno_lit(&s, sno_fail())));
+    assert(view_same(s, before));
+    s = sno_fail();
+    assert(sno_failed(sno_lit(&s, sno_bind("A"))));
+    assert(sno_failed(sno_lit(&s, sno_null())));        // even the null literal
+    assert(sno_failed(s));
+}
+
+/*
  * Check order: argument errors first, then failure.
  * A bad argument (n < 0, null set, NULL pointer) is a bug in the program and
  * halts on entry even if an earlier match failed - see test_sno_halt().
@@ -993,6 +1111,10 @@ static void test_sno_errors() {
     assert(view_eq(v[0], "X"));                 // ...and nothing written
     assert(sno_bind_list(ops, v, 0) == NULL     && sno_err_type() == 10);  // size 0
 
+    // 1.4 LIT
+    assert(F_(sno_lit(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_lit(NULL, sno_fail()))        && sno_err_type() == 10);  // subject pointer NULL beats failure
+
     // 2.8 LEN
     assert(F_(sno_len(NULL, 1))                 && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_len(&s, -1))                  && sno_err_type() == 14);  // n < 0
@@ -1046,6 +1168,7 @@ static void test_core() {
     test_succeeded();
     test_break();
     test_bind_list();
+    test_lit();
 
     //test_fail_first();
     //test_sno_errors();

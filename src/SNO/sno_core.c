@@ -30,7 +30,6 @@ bool sno_char_in_cstr(char c, const char* cstr)  {
 // Chapter 1 - Introduction to the SNOBOL Programming Language
 
 // 1.1 Assignment Statements
-
 sno_view_t sno_bind(const char* cstr) {
     sno_view_t v;
     if (!cstr) return sno_fail();
@@ -50,15 +49,22 @@ sno_view_t* sno_bind_list(const char** cstrs, sno_view_t* views, size_t size) {
 }
 
 // 1.3 Strings
-
 sno_view_t sno_null() {
     sno_view_t v;
     v.begin = v.end = SNO_NULL_STRING;
     return v;
 }
 
-// 1.8 Flow Control
+// 1.4 Pattern Matching Statements
+sno_view_t sno_lit(sno_view_t* u, sno_view_t lit) {
+    sno_view_t w = *u;
+    sno_view_t m = sno_len(&w, sno_size(lit));
+    if(!sno_ident(m, lit)) return sno_fail();
+    *u = w;
+    return m;
+}
 
+// 1.8 Flow Control
 sno_view_t sno_fail() {
     sno_view_t v;
     v.begin = v.end = NULL;
