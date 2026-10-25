@@ -382,7 +382,7 @@ static void test_sno_errors_extra() {
     // 1.5 str_replace
     assert(F_(sno_str_replace(NULL, sizeof buf, m, r))                      && sno_err_type() == 10);  // buf NULL
     assert(F_(sno_str_replace(NULL, sizeof buf, m, r2))                     && sno_err_type() == 10);  // buf NULL beats failure
-    assert(F_(sno_str_replace(memset(buf, 'X', sizeof buf), sizeof buf, m, r)) && sno_err_type() == 10); // no '\0' within size
+    assert(F_(sno_str_replace((char*)memset(buf, 'X', sizeof buf), sizeof buf, m, r)) && sno_err_type() == 10); // no '\0' within size
     assert(F_(sno_str_replace(strcpy(buf, "X"), sizeof buf, NULL, r))       && sno_err_type() == 10);  // from NULL
     assert(F_(sno_str_replace(strcpy(buf, "X"), sizeof buf, m, NULL))       && sno_err_type() == 10);  // to NULL
     assert(F_(sno_str_replace(strcpy(buf, "$0$0"), sizeof buf, m, r))       && sno_err_type() == 15);  // result too big
@@ -391,7 +391,7 @@ static void test_sno_errors_extra() {
     // 3.4.2 REPLACE
     assert(F_(sno_chr_replace(NULL, sizeof buf, "A", "B"))                  && sno_err_type() == 10);  // buf NULL
     assert(F_(sno_chr_replace(NULL, sizeof buf, "AB", "A"))                 && sno_err_type() == 10);  // buf NULL beats failure
-    assert(F_(sno_chr_replace(memset(buf, 'X', sizeof buf), sizeof buf, "A", "B")) && sno_err_type() == 10); // no '\0' within size
+    assert(F_(sno_chr_replace((char*)memset(buf, 'X', sizeof buf), sizeof buf, "A", "B")) && sno_err_type() == 10); // no '\0' within size
     assert(F_(sno_chr_replace(strcpy(buf, "X"), 0, "A", "B"))               && sno_err_type() == 10);  // size 0: no room for a '\0'
     assert(F_(sno_chr_replace(strcpy(buf, "X"), sizeof buf, NULL, "B"))     && sno_err_type() == 10);  // from NULL
     assert(F_(sno_chr_replace(strcpy(buf, "X"), sizeof buf, "A", NULL))     && sno_err_type() == 10);  // to NULL

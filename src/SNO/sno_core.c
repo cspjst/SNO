@@ -40,7 +40,9 @@ sno_view_t sno_bind(const char* cstr) {
 
 sno_view_t* sno_bind_list(const char** cstrs, sno_view_t* views, size_t size) {
     if(!cstrs || !views || size < 1) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return NULL; }
-    size_t i;
+    size_t i = 0;
+    while(cstrs[i++]);
+    if(i > size) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return NULL; }
     for(i = 0; i < size && cstrs[i]; ++i) {
         views[i] = sno_bind(cstrs[i]);
     }
@@ -57,6 +59,7 @@ sno_view_t sno_null() {
 
 // 1.4 Pattern Matching Statements
 sno_view_t sno_lit(sno_view_t* u, sno_view_t lit) {
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
     sno_view_t w = *u;
     sno_view_t m = sno_len(&w, sno_size(lit));
     if(!sno_ident(m, lit)) return sno_fail();
@@ -115,9 +118,9 @@ match:
 
 // 2.10
 sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(sno_is_null(v)) return sno_error(SNO_ERR_NULL_STRING);
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
-    if(sno_is_null(v)) sno_error(SNO_ERR_NULL_STRING);
     if (sno_is_null(*u)) return sno_fail();
     if (!sno_char_in_set(*u->begin, v)) return sno_fail();
     sno_view_t w;
@@ -129,9 +132,9 @@ sno_view_t sno_any(sno_view_t* u, sno_view_t v) {
 
 // 2.10
 sno_view_t sno_notany(sno_view_t* u, sno_view_t v) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(sno_is_null(v)) return sno_error(SNO_ERR_NULL_STRING);
     if (sno_failed(*u) || sno_failed(v)) return sno_fail();
-    if(sno_is_null(v)) sno_error(SNO_ERR_NULL_STRING);
     if (sno_is_null(*u)) return sno_fail();
     if (sno_char_in_set(*u->begin, v)) return sno_fail();
     sno_view_t w;
@@ -143,8 +146,8 @@ sno_view_t sno_notany(sno_view_t* u, sno_view_t v) {
 
 // 2.11
 sno_view_t sno_rtab(sno_view_t* u, int n) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) return sno_error(SNO_ERR_NEGATIVE_NUMBER);
     if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
     sno_view_t w;
     w.begin = u->begin;
@@ -155,8 +158,8 @@ sno_view_t sno_rtab(sno_view_t* u, int n) {
 
 // 2.11
 sno_view_t sno_tab(sno_view_t* u, int n) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) return sno_error(SNO_ERR_NEGATIVE_NUMBER);
     if(u->end - n < u->begin || sno_failed(*u)) return sno_fail();
     sno_view_t w;
     w.begin = u->begin;
@@ -167,8 +170,8 @@ sno_view_t sno_tab(sno_view_t* u, int n) {
 
 // 2.12
 sno_view_t sno_rpos(sno_view_t* u, int n) {
-    if(!u) sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
-    if(n < 0) sno_error(SNO_ERR_NEGATIVE_NUMBER);
+    if(!u) return sno_error(SNO_ERR_ILLEGAL_ARGUMENT);
+    if(n < 0) return sno_error(SNO_ERR_NEGATIVE_NUMBER);
     if(sno_size(*u) != n || sno_failed(*u)) return sno_fail();
     sno_view_t w;
     w.begin = w.end = u->begin;

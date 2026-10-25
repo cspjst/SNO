@@ -1054,37 +1054,54 @@ static void test_lit() {
 /*
  * Check order: argument errors first, then failure.
  * A bad argument (n < 0, null set, NULL pointer) is a bug in the program and
- * halts on entry even if an earlier match failed - see test_sno_halt().
+ * is raised on entry even if an earlier match failed - see test_sno_errors().
  * A failure view with *valid* arguments is normal flow: it just fails.
  */
 static void test_fail_first() {
     sno_view_t s;
 
-    // failure subject, valid arguments: fails, and stays failed
+    // 1.4 LIT
     s = sno_fail();
-    assert(sno_failed(sno_len(&s, 1)));
-    assert(sno_failed(sno_len(&s, 0)));         // even LEN(0)
-    assert(sno_failed(sno_tab(&s, 0)));
+    assert(sno_failed(sno_lit(&s, sno_bind("A"))));         // failure subject
+    assert(sno_failed(sno_lit(&s, sno_null())));            // even the null literal
+    s = sno_bind("A");
+    assert(sno_failed(sno_lit(&s, sno_fail())));            // failure literal is a value: fails
+    assert(view_eq(s, "A"));                                // subject untouched
+
+    // 2.8 LEN
+    s = sno_fail();
+    assert(sno_failed(sno_len(&s, 1)));                     // failure subject
+    assert(sno_failed(sno_len(&s, 0)));                     // even LEN(0)
+
+    // 2.9 BREAK
+    s = sno_fail();
+    assert(sno_failed(sno_break(&s, sno_bind("A"))));       // failure subject
+    assert(sno_failed(sno_break(&s, sno_fail())));          // failure subject and set
+    s = sno_bind("A");
+    assert(sno_failed(sno_break(&s, sno_fail())));          // failure set is a value: fails
+    assert(view_eq(s, "A"));                                // subject untouched
+
+    // 2.10 ANY / NOTANY
+    s = sno_fail();
+    assert(sno_failed(sno_any(&s, sno_bind("A"))));         // failure subject
+    assert(sno_failed(sno_notany(&s, sno_bind("A"))));
+    assert(sno_failed(sno_any(&s, sno_fail())));            // failure subject and set
+    assert(sno_failed(sno_notany(&s, sno_fail())));
+    s = sno_bind("A");
+    assert(sno_failed(sno_any(&s, sno_fail())));            // failure set is a value: fails
+    assert(sno_failed(sno_notany(&s, sno_fail())));
+    assert(view_eq(s, "A"));                                // subject untouched
+
+    // 2.11 TAB / RTAB / REM
+    s = sno_fail();
+    assert(sno_failed(sno_tab(&s, 0)));                     // failure subject
     assert(sno_failed(sno_rtab(&s, 0)));
     assert(sno_failed(sno_rem(&s)));
-    assert(sno_failed(sno_rpos(&s, 0)));
-    assert(sno_failed(sno_any(&s, sno_bind("A"))));
-    assert(sno_failed(sno_notany(&s, sno_bind("A"))));
-    assert(sno_failed(s));
 
-    // failure set is a value, not a bad argument: fails
-    s = sno_bind("A");
-    assert(sno_failed(sno_any(&s, sno_fail())));
-    assert(sno_failed(sno_notany(&s, sno_fail())));
-    assert(view_eq(s, "A"));                    // subject untouched
-
-    // failure subject and failure set: fails
+    // 2.12 RPOS
     s = sno_fail();
-    assert(sno_failed(sno_any(&s, sno_fail())));
-    assert(sno_failed(sno_notany(&s, sno_fail())));
-
-    assert(sno_failed(sno_break(&s, sno_bind("A"))));       // failure subject
-    assert(sno_failed(sno_break(&s, sno_fail())));          // failure set (s = "A")
+    assert(sno_failed(sno_rpos(&s, 0)));                    // failure subject
+    assert(sno_failed(s));                                  // and it stays failed throughout
 }
 
 // Precondition violations under &ERRLIMIT (Green Book 10.2.2): with errors allowed, a
@@ -1097,13 +1114,13 @@ static void test_sno_errors() {
     sno_view_t s = sno_bind("X");
     sno_view_t f = sno_fail();
 
-    sno_err_limit(27);                          // exactly one per line below
+    sno_err_limit(29);                          // exactly one per line below
     assert(sno_err_type() == SNO_ERR_NONE);     // the limit starts a clean record
 
-    // 0.1 character sets
+    // 0.1 character sets   1
     assert(!sno_char_in_cstr('a', NULL)         && sno_err_type() == 10);  // charset NULL
 
-    // 1.1 BIND LIST
+    // 1.1 BIND LIST        5
     assert(sno_bind_list(NULL, v, 8) == NULL    && sno_err_type() == 10);  // cstrs NULL
     assert(sno_bind_list(ops, NULL, 8) == NULL  && sno_err_type() == 10);  // views NULL
     v[0] = sno_bind("X");
@@ -1111,21 +1128,21 @@ static void test_sno_errors() {
     assert(view_eq(v[0], "X"));                 // ...and nothing written
     assert(sno_bind_list(ops, v, 0) == NULL     && sno_err_type() == 10);  // size 0
 
-    // 1.4 LIT
+    // 1.4 LIT              7
     assert(F_(sno_lit(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_lit(NULL, sno_fail()))        && sno_err_type() == 10);  // subject pointer NULL beats failure
 
-    // 2.8 LEN
+    // 2.8 LEN              10
     assert(F_(sno_len(NULL, 1))                 && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_len(&s, -1))                  && sno_err_type() == 14);  // n < 0
     assert(F_(sno_len(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
 
-    // 2.9 BREAK
+    // 2.9 BREAK            13
     assert(F_(sno_break(NULL, sno_bind(".")))   && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_break(&s, sno_null()))        && sno_err_type() == 4);   // null set
     assert(F_(sno_break(&f, sno_null()))        && sno_err_type() == 4);   // null set beats failure
 
-    // 2.10 ANY / NOTANY
+    // 2.10 ANY / NOTANY    19
     assert(F_(sno_any(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_any(&s, sno_null()))          && sno_err_type() == 4);   // null set
     assert(F_(sno_any(&f, sno_null()))          && sno_err_type() == 4);   // null set beats failure
@@ -1133,7 +1150,7 @@ static void test_sno_errors() {
     assert(F_(sno_notany(&s, sno_null()))       && sno_err_type() == 4);   // null set
     assert(F_(sno_notany(&f, sno_null()))       && sno_err_type() == 4);   // null set beats failure
 
-    // 2.11 TAB / RTAB / REM
+    // 2.11 TAB / RTAB / REM    26
     assert(F_(sno_tab(NULL, 0))                 && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_tab(&s, -1))                  && sno_err_type() == 14);  // n < 0
     assert(F_(sno_tab(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
@@ -1142,12 +1159,12 @@ static void test_sno_errors() {
     assert(F_(sno_rtab(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
     assert(F_(sno_rem(NULL))                    && sno_err_type() == 10);  // subject pointer NULL, via RTAB
 
-    // 2.12 RPOS
+    // 2.12 RPOS        29
     assert(F_(sno_rpos(NULL, 0))                && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_rpos(&s, -1))                 && sno_err_type() == 14);  // n < 0
     assert(F_(sno_rpos(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
 
-    assert(sno_err_count() == 0);               // all 27 raised, none skipped
+    assert(sno_err_count() == 0);               // all 28 raised, none skipped
     assert(view_eq(s, "X") && sno_failed(f));   // and no subject was moved
     sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
 }
@@ -1170,8 +1187,8 @@ static void test_core() {
     test_bind_list();
     test_lit();
 
-    //test_fail_first();
-    //test_sno_errors();
+    test_fail_first();
+    test_sno_errors();
     printf("Pass core\n");
 }
 
