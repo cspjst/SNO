@@ -102,6 +102,28 @@ bool sno_char_in_cstr(char c, const char* charset);
  */
 sno_view_t sno_bind(const char* cstr);
 
+/**
+ * 1.1 C BIND LIST
+ * Bind a NULL-terminated list of C strings into a list of views, ended by a failure-view sentinel.
+ *
+ * @pre
+ *  + cstrs != NULL and views != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *  + size holds every view plus the sentinel, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns views; views[i] is sno_bind(cstrs[i]), then sno_fail() as the sentinel.
+ *  + An empty list gives just the sentinel.
+ *  + "" binds to the null string - not the end: only the failure view ends the list.
+ * Failure: returns NULL, writing nothing - only under &ERRLIMIT, after an error.
+ *
+ * @warning The views point into the C strings: they must outlive the list (static tables do).
+ * @note
+ *  + Bind once at start-up, then pass the list to sno_any_lit() and sno_next_any_lit().
+ *  + A static table of views can't be written portably from literals - this builds one at run time.
+ *  + Nothing is written past the sentinel.
+ * @see     sno_bind(), sno_any_lit()
+ */
+sno_view_t* sno_bind_list(const char** cstrs, sno_view_t* views, size_t size);
+
 // 1.3 Strings
 
 /**

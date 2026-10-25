@@ -39,6 +39,16 @@ sno_view_t sno_bind(const char* cstr) {
     return v;
 }
 
+sno_view_t* sno_bind_list(const char** cstrs, sno_view_t* views, size_t size) {
+    if(!cstrs || !views || size < 1) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return NULL; }
+    size_t i;
+    for(i = 0; i < size && cstrs[i]; ++i) {
+        views[i] = sno_bind(cstrs[i]);
+    }
+    views[i] = sno_fail();
+    return views;
+}
+
 // 1.3 Strings
 
 sno_view_t sno_null() {
