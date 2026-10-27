@@ -1052,6 +1052,56 @@ static void test_lit() {
 }
 
 /*
+ * 1.4 FIND LIT: find which literal in a list matches at the cursor - dispatch.
+ * Success returns the index of the first entry that matches and moves the cursor past it.
+ * Failure returns -1 and leaves the subject unchanged. A list is C strings ending in NULL.
+ * Preconditions: subject pointer and list != NULL (error 10).
+ */
+static void test_find_lit() {
+    enum { PUSHI, PUSH, POP };                  // same order as MNEMONICS
+    static const char* MNEMONICS[] = { "PUSHI", "PUSH", "POP", NULL };
+    static const char* SHORT_FIRST[] = { "PUSH", "PUSHI", NULL };
+    static const char* LINES[] = { "PUSHI 5", "PUSH x", "POP", "ADD" };
+    sno_view_t s, before;
+    int i, pushi = 0, push = 0, pop = 0, unknown = 0;
+
+    // dispatch: the index of the entry that matched, the cursor past it
+    s = sno_bind("PUSHI 5");
+    assert(sno_find_lit(&s, MNEMONICS) == PUSHI && view_eq(s, " 5"));
+    s = sno_bind("PUSH x");
+    assert(sno_find_lit(&s, MNEMONICS) == PUSH && view_eq(s, " x"));
+    s = sno_bind("POP");
+    assert(sno_find_lit(&s, MNEMONICS) == POP && sno_is_null(s));
+
+    // ...straight into a switch
+    for (i = 0; i < 4; ++i) {
+        s = sno_bind(LINES[i]);
+        switch (sno_find_lit(&s, MNEMONICS)) {
+        case PUSHI: ++pushi;   break;
+        case PUSH:  ++push;    break;
+        case POP:   ++pop;     break;
+        default:    ++unknown; break;           // -1: no entry matched
+        }
+    }
+    assert(pushi == 1 && push == 1 && pop == 1 && unknown == 1);
+
+    // none matches - or only later in the subject (anchored): -1, subject unchanged
+    s = sno_bind("ADD");
+    before = s;
+    assert(sno_find_lit(&s, MNEMONICS) == -1 && view_same(s, before));
+    s = sno_bind("X PUSH");
+    before = s;
+    assert(sno_find_lit(&s, MNEMONICS) == -1 && view_same(s, before));
+
+    // first in the list wins: PUSHI must come before PUSH
+    s = sno_bind("PUSHI");
+    assert(sno_find_lit(&s, SHORT_FIRST) == 0 && view_eq(s, "I"));
+
+    // failure subject: -1, and it stays failed
+    s = sno_fail();
+    assert(sno_find_lit(&s, MNEMONICS) == -1 && sno_failed(s));
+}
+/*
  * Check order: argument errors first, then failure.
  * A bad argument (n < 0, null set, NULL pointer) is a bug in the program and
  * is raised on entry even if an earlier match failed - see test_sno_errors().
@@ -1114,7 +1164,7 @@ static void test_sno_errors() {
     sno_view_t s = sno_bind("X");
     sno_view_t f = sno_fail();
 
-    sno_err_limit(29);                          // exactly one per line below
+    sno_err_limit(32);                          // exactly one per line below
     assert(sno_err_type() == SNO_ERR_NONE);     // the limit starts a clean record
 
     // 0.1 character sets   1
@@ -1132,17 +1182,22 @@ static void test_sno_errors() {
     assert(F_(sno_lit(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_lit(NULL, sno_fail()))        && sno_err_type() == 10);  // subject pointer NULL beats failure
 
-    // 2.8 LEN              10
+    // 1.4 FIND LIT         10
+    assert(sno_find_lit(NULL, ops) == -1        && sno_err_type() == 10);  // subject pointer NULL
+    assert(sno_find_lit(&s, NULL) == -1         && sno_err_type() == 10);  // list NULL
+    assert(sno_find_lit(&f, NULL) == -1         && sno_err_type() == 10);  // list NULL beats failure
+
+    // 2.8 LEN              13
     assert(F_(sno_len(NULL, 1))                 && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_len(&s, -1))                  && sno_err_type() == 14);  // n < 0
     assert(F_(sno_len(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
 
-    // 2.9 BREAK            13
+    // 2.9 BREAK            16
     assert(F_(sno_break(NULL, sno_bind(".")))   && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_break(&s, sno_null()))        && sno_err_type() == 4);   // null set
     assert(F_(sno_break(&f, sno_null()))        && sno_err_type() == 4);   // null set beats failure
 
-    // 2.10 ANY / NOTANY    19
+    // 2.10 ANY / NOTANY    22
     assert(F_(sno_any(NULL, sno_bind("A")))     && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_any(&s, sno_null()))          && sno_err_type() == 4);   // null set
     assert(F_(sno_any(&f, sno_null()))          && sno_err_type() == 4);   // null set beats failure
@@ -1150,7 +1205,7 @@ static void test_sno_errors() {
     assert(F_(sno_notany(&s, sno_null()))       && sno_err_type() == 4);   // null set
     assert(F_(sno_notany(&f, sno_null()))       && sno_err_type() == 4);   // null set beats failure
 
-    // 2.11 TAB / RTAB / REM    26
+    // 2.11 TAB / RTAB / REM    29
     assert(F_(sno_tab(NULL, 0))                 && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_tab(&s, -1))                  && sno_err_type() == 14);  // n < 0
     assert(F_(sno_tab(&f, -1))                  && sno_err_type() == 14);  // n < 0 beats failure
@@ -1159,12 +1214,12 @@ static void test_sno_errors() {
     assert(F_(sno_rtab(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
     assert(F_(sno_rem(NULL))                    && sno_err_type() == 10);  // subject pointer NULL, via RTAB
 
-    // 2.12 RPOS        29
+    // 2.12 RPOS            32
     assert(F_(sno_rpos(NULL, 0))                && sno_err_type() == 10);  // subject pointer NULL
     assert(F_(sno_rpos(&s, -1))                 && sno_err_type() == 14);  // n < 0
     assert(F_(sno_rpos(&f, -1))                 && sno_err_type() == 14);  // n < 0 beats failure
 
-    assert(sno_err_count() == 0);               // all 29 raised, none skipped
+    assert(sno_err_count() == 0);               // all 32 raised, none skipped
     assert(view_eq(s, "X") && sno_failed(f));   // and no subject was moved
     sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
 }
@@ -1186,6 +1241,7 @@ static void test_core() {
     test_break();
     test_bind_list();
     test_lit();
+    test_find_lit();
 
     test_fail_first();
     test_sno_errors();

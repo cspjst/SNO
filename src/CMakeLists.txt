@@ -30,7 +30,7 @@ add_compile_options(
     #-l=dos              # Link DOS library
 
     # === MEMORY MODEL (pick ONE) ===
-    -ml                 # Large model: far data pointers (flexible)
+     -ml                 # Large model: far data pointers (flexible)
     # -zl               # Tiny model: .COM output, all segments unified smallest
 
     # === SIZE vs SPEED (pick ONE) ===

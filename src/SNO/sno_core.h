@@ -117,10 +117,10 @@ sno_view_t sno_bind(const char* cstr);
  *
  * @warning The views point into the C strings: they must outlive the list (static tables do).
  * @note
- *  + Bind once at start-up, then pass the list to sno_any_lit() and sno_next_any_lit().
+ *  + Bind once at start-up, then use or pass the list as needed.
  *  + A static table of views can't be written portably from literals - this builds one at run time.
  *  + Nothing is written past the sentinel.
- * @see     sno_bind(), sno_any_lit()
+ * @see     sno_bind()
  */
 sno_view_t* sno_bind_list(const char** cstrs, sno_view_t* views, size_t size);
 
@@ -172,6 +172,25 @@ static inline bool sno_is_null(sno_view_t v) { return v.begin != NULL && v.begin
  * @see     sno_any_lit(), sno_next_lit(), sno_ident(), sno_bind()
  */
 sno_view_t sno_lit(sno_view_t* u, sno_view_t lit);
+
+/**
+ * 1.4 C FIND LIT
+ * Find which literal in a list matches at the cursor of the subject (u) - dispatch.
+ *
+ * @pre     u != NULL and list != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns the index of the first entry that matches at the cursor; the cursor moves past it.
+ * Failure: returns -1; leaves the subject unchanged.
+ *  + No entry matches at the cursor.
+ *  + The subject is a failure view.
+ *
+ * @warning First in the list wins: list longer literals before their prefixes ("PUSHI" before "PUSH").
+ * @note
+ *  + Returns an index, not a view: a list says which, a literal says what (sno_lit()).
+ *  + list is a NULL-terminated list of C strings, as sno_str_replace().
+ * @see     sno_lit(), sno_str_replace()
+ */
+int sno_find_lit(sno_view_t* u, const char** list);
 
 // 1.8 Flow Control
 

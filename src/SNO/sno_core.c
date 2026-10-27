@@ -67,6 +67,12 @@ sno_view_t sno_lit(sno_view_t* u, sno_view_t lit) {
     return m;
 }
 
+int sno_find_lit(sno_view_t* u, const char** list) {
+     if(!u || sno_failed(*u) || !list) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return -1; }
+
+     return -1;
+}
+
 // 1.8 Flow Control
 sno_view_t sno_fail() {
     sno_view_t v;
