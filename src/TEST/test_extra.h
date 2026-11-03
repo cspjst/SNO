@@ -412,7 +412,7 @@ static void test_extra() {
     test_chr_replace();
 
     test_fail_first_extra();
-    //test_sno_errors_extra();
+    test_sno_errors_extra();
     printf("Pass extra\n");
 }
 
