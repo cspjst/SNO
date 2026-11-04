@@ -27,14 +27,14 @@ Functions introduced in 1.10 are listed under the chapter that describes them in
 - [ ] 2.4.1 unanchored mode - (`sno_next_lit()` planned)
 - [x] 2.5 value assignment `.` and `$` - every match returns its view
 - [x] 2.8 `LEN` - `sno_len()`
-- [ ] 2.9 `SPAN` - (`sno_span()` planned)
+- [ ] 2.9 `SPAN` - `sno_span()`
 - [x] 2.9 `BREAK` - `sno_break()`
 - [x] 2.10 `ANY` - `sno_any()`
 - [x] 2.10 `NOTANY` - `sno_notany()`
 - [x] 2.11 `TAB` - `sno_tab()`
 - [x] 2.11 `RTAB` - `sno_rtab()`
 - [x] 2.11 `REM` - `sno_rem()`
-- [ ] 2.12 `POS` - (`sno_at()` planned?)
+- [ ] 2.12 `POS` - `sno_at()` 
 - [x] 2.12 `RPOS` - `sno_rpos()`
 - [ ] 2.13 `FAIL` (as a pattern)
 - [ ] 2.14 `FENCE`
