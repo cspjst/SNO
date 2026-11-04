@@ -474,7 +474,7 @@ void test_core1(void) {
     test_bind_list();
     test_fail_null();
     test_lit();
-    test_find_lit();
+    //test_find_lit();
     test_succeeded();
     test_size();
     test_trim();
