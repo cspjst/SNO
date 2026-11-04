@@ -80,16 +80,6 @@ sno_view_t sno_fail() {
     return v;
 }
 
-// 1.10 Functions
-
-// 1.11
-sno_view_t sno_trim(sno_view_t v) {
-    if(sno_failed(v)) return v;
-    sno_cursor_t i = v.end - 1;
-    while(i >= v.begin && sno_char_in_cstr(*i--, SNO_POSIX_WHITESPACE)) v.end--;
-    return v;
-}
-
 // 2.0 Pattern Matching
 
 // 2.8
@@ -201,4 +191,12 @@ bool sno_differ(sno_view_t u, sno_view_t v) {
     sno_cursor_t p = u.begin, q = v.begin;
     while (p < u.end && *p == *q) p++, q++;
     return p != u.end;
+}
+
+// 3.4.3
+sno_view_t sno_trim(sno_view_t v) {
+    if(sno_failed(v)) return v;
+    sno_cursor_t i = v.end - 1;
+    while(i >= v.begin && sno_char_in_cstr(*i--, SNO_POSIX_WHITESPACE)) v.end--;
+    return v;
 }

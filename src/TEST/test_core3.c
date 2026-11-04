@@ -7,7 +7,7 @@
 #include <assert.h>
 
 /*
- * Tests for sno_core.h (v0.4), Green Book 3.3.1:
+ * Tests for sno_core.h (v0.4), Green Book 3.3.1 - 3.4.3:
  * Chapter 3 - Primitive Functions, Predicates, and Operations.
  * Independent of the other chapters: its own error tests and runner, test_core3().
  *
@@ -18,9 +18,9 @@
  *                  error number; under the default &ERRLIMIT = 0 it halts
  *                  with that number as ERRORLEVEL
  *
- * Each test's comment lists its preconditions. IDENT and DIFFER have none: they
- * take no subject pointer and accept any view, so this chapter has no
- * error tests. The real halt and
+ * Each test's comment lists its preconditions. IDENT, DIFFER, SIZE and TRIM have
+ * none: they take no subject pointer and accept any view, so this chapter
+ * has no error tests. The real halt and
  * ERRORLEVEL are checked by the DOS batch file.
  */
 
@@ -88,7 +88,54 @@ void test_ident_differ(void) {
     assert(!sno_differ(sno_fail(), sno_null()));
 }
 
+// 3.4.1 SIZE
+void test_size(void) {
+    sno_view_t v = sno_bind("HELLO");
+
+    assert(sno_size(v) == 5);
+    v.begin++;                                  // "ELLO"
+    assert(sno_size(v) == 4);
+    v.end--;                                    // "ELL"
+    assert(sno_size(v) == 3);
+    v.end = v.begin;
+    assert(sno_size(v) == 0);
+    assert(sno_size(sno_fail()) == 0);
+}
+
+// 3.4.3 TRIM: trailing POSIX "C" locale whitespace only
+void test_trim(void) {
+    static const char s[] = "ABC  ";
+    sno_view_t v;
+
+    // each of the six spaces on its own
+    assert(view_eq(sno_trim(sno_bind("ABC ")),  "ABC"));
+    assert(view_eq(sno_trim(sno_bind("ABC\f")), "ABC"));
+    assert(view_eq(sno_trim(sno_bind("ABC\n")), "ABC"));
+    assert(view_eq(sno_trim(sno_bind("ABC\r")), "ABC"));
+    assert(view_eq(sno_trim(sno_bind("ABC\t")), "ABC"));
+    assert(view_eq(sno_trim(sno_bind("ABC\v")), "ABC"));
+
+    assert(view_eq(sno_trim(sno_bind("ABC \f\n\r\t\v")), "ABC"));  // mixed
+    assert(view_eq(sno_trim(sno_bind("ABC\r\n")), "ABC"));    // DOS line end
+    assert(view_eq(sno_trim(sno_bind("  ABC")), "  ABC"));    // leading kept
+    assert(view_eq(sno_trim(sno_bind("A \t B")), "A \t B"));  // interior kept
+    assert(view_eq(sno_trim(sno_bind(" \t\r\n")), ""));       // all space
+    assert(sno_is_null(sno_trim(sno_null())));
+
+    // not spaces: other control and high-bit chars stay
+    assert(view_eq(sno_trim(sno_bind("ABC\x1B")), "ABC\x1B"));
+    assert(view_eq(sno_trim(sno_bind("ABC\xA0")), "ABC\xA0"));
+    assert(view_eq(sno_trim(sno_bind("ABC\xFF")), "ABC\xFF"));
+
+    v = sno_trim(sno_bind(s));
+    assert(v.begin == s && v.end == s + 3);     // shrinks, no copy
+
+    assert(sno_failed(sno_trim(sno_fail())));   // failure propagates
+}
+
 void test_core3(void) {
     test_ident_differ();
+    test_size();
+    test_trim();
     printf("Pass core 3\n");
 }

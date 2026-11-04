@@ -235,30 +235,6 @@ static inline bool sno_failed(sno_view_t v) { return v.begin == NULL; }
  */
 static inline bool sno_succeeded(sno_view_t v) { return v.begin != NULL; }
 
-// 1.10 Functions
-
-/**
- * 1.10.1 SNOBOL SIZE(string)
- * Returns the length (number of characters) of the string view.
- *
- * @warning A failure view has size 0 - use sno_failed() to tell it from the null string.
- */
-static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
-
-/**
- * 1.11 SNOBOL TRIM(string)
- * Removes trailing whitespace as defined by the POSIX C locale: ' ' '\f' '\n' '\r' '\t' '\v'
- *
- * Success: returns v with end moved back over trailing whitespace; no copy.
- *  + Leading and interior whitespace is kept.
- *  + An all-whitespace view gives the null string.
- * Failure: returns the failure view unchanged.
- *  + v is a failure view.
- *
- * @see     sno_constants.h
- */
-sno_view_t sno_trim(sno_view_t v);
-
 // Chapter 2 - Pattern Matching
 
 /**
@@ -459,5 +435,27 @@ bool sno_ident(sno_view_t u, sno_view_t v);
  * @see     sno_ident()
  */
 bool sno_differ(sno_view_t u, sno_view_t v);
+
+/**
+ * 3.4.1 SNOBOL SIZE(string)
+ * Returns the length (number of characters) of the string view.
+ *
+ * @warning A failure view has size 0 - use sno_failed() to tell it from the null string.
+ */
+static inline int sno_size(sno_view_t v) { return sno_failed(v) ? 0 : (int)(v.end - v.begin); }
+
+/**
+ * 3.4.3 SNOBOL TRIM(string)
+ * Removes trailing whitespace as defined by the POSIX C locale: ' ' '\f' '\n' '\r' '\t' '\v'
+ *
+ * Success: returns v with end moved back over trailing whitespace; no copy.
+ *  + Leading and interior whitespace is kept.
+ *  + An all-whitespace view gives the null string.
+ * Failure: returns the failure view unchanged.
+ *  + v is a failure view.
+ *
+ * @see     sno_constants.h
+ */
+sno_view_t sno_trim(sno_view_t v);
 
 #endif
