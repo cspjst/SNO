@@ -287,7 +287,7 @@ void test_find_lit(void) {
     enum { PUSHI, PUSH, POP };                  // same order as MNEMONICS
     static const char* MNEMONICS[] = { "PUSHI", "PUSH", "POP", NULL };
     static const char* SHORT_FIRST[] = { "PUSH", "PUSHI", NULL };
-    static const char* LINES[] = { "PUSHI 5", "PUSH x", "POP", "ADD"};
+    static const char* LINES[] = { "PUSHI 5", "PUSH x", "POP", "ADD" };
     sno_view_t s, before;
     int i, pushi = 0, push = 0, pop = 0, unknown = 0;
 
@@ -326,6 +326,179 @@ void test_find_lit(void) {
     // failure subject: -1, and it stays failed
     s = sno_fail();
     assert(sno_find_lit(&s, MNEMONICS) == -1 && sno_failed(s));
+}
+
+/*
+ * 1.4 NEXT LIT: match up to, but not including, the next occurrence of a literal -
+ * SNOBOL's unanchored scan, made explicit (Green Book 2.4.1).
+ * Success returns [old cursor, occurrence) and moves the cursor to the occurrence,
+ * which is not consumed. Failure returns sno_fail() and leaves the subject unchanged.
+ * Precondition: subject pointer != NULL (error 10).
+ */
+void test_next_lit(void) {
+    sno_view_t s, before, m, pre, rest;
+
+    // match is the skipped text, a view into the subject; the cursor stops AT the occurrence
+    s = sno_bind("PROGRAMMER");
+    before = s;
+    m = sno_next_lit(&s, sno_bind("GRAM"));
+    assert(view_eq(m, "PRO"));
+    assert(m.begin == before.begin);            // a view, not a copy
+    assert(m.end == s.begin);                   // ends at the new cursor
+    assert(s.end == before.end);                // end never moves
+    assert(view_eq(s, "GRAMMER"));              // the occurrence is not consumed
+
+    // Green Book 1.4: TRADE 'GRAM' - the occurrence test is just success
+    s = sno_bind("PROGRAMMER");
+    assert(S_(sno_next_lit(&s, sno_bind("GRAM"))));
+
+    // Green Book 1.5 shape: prefix, match and rest of a replacement statement, as views
+    s = sno_bind("AC4DAHKDKS");
+    pre = sno_next_lit(&s, sno_bind("4D"));
+    m = sno_lit(&s, sno_bind("4D"));
+    rest = s;
+    assert(view_eq(pre, "AC") && view_eq(m, "4D") && view_eq(rest, "AHKDKS"));
+    assert(pre.end == m.begin && m.end == rest.begin);  // contiguous: nothing lost
+
+    // at the occurrence: null string at the cursor, subject unchanged
+    s = sno_bind("GRAMMER");
+    before = s;
+    m = sno_next_lit(&s, sno_bind("GRAM"));
+    assert(sno_is_null(m));                     // success, not failure
+    assert(m.begin == before.begin);            // at the cursor
+    assert(view_same(s, before));
+
+    // ...and again: NEXT LIT never moves past it - consume it with LIT to go on
+    assert(sno_is_null(sno_next_lit(&s, sno_bind("GRAM"))));
+    assert(view_same(s, before));
+}
+
+// 1.4 NEXT LIT, continued: where the scan stops - and where it doesn't
+void test_next_lit_scan(void) {
+    sno_view_t s, before, m;
+    int n;
+
+    // not found: failure, subject unchanged
+    s = sno_bind("PROGRAMMER");
+    before = s;
+    assert(sno_failed(sno_next_lit(&s, sno_bind("GRIM"))));
+    assert(view_same(s, before));
+
+    // must occur wholly before the end: cut off by the end is not found
+    s = sno_bind("XYZAB");
+    before = s;
+    assert(sno_failed(sno_next_lit(&s, sno_bind("ABC"))));
+    assert(view_same(s, before));
+
+    // ...but right at the end is found
+    s = sno_bind("XYAB");
+    assert(view_eq(sno_next_lit(&s, sno_bind("AB")), "XY"));
+    assert(view_eq(s, "AB"));
+
+    // longer than the subject: failure
+    s = sno_bind("AB");
+    before = s;
+    assert(sno_failed(sno_next_lit(&s, sno_bind("ABC"))));
+    assert(view_same(s, before));
+
+    // the leftmost occurrence wins
+    s = sno_bind("A;B;C");
+    assert(view_eq(sno_next_lit(&s, sno_bind(";")), "A"));
+    assert(view_eq(s, ";B;C"));
+
+    // a partial match on the way is skipped, not taken
+    s = sno_bind("GRAGRAM");
+    assert(view_eq(sno_next_lit(&s, sno_bind("GRAM")), "GRA"));
+
+    // overlapping occurrences: the earliest start wins
+    s = sno_bind("BAAA");
+    assert(view_eq(sno_next_lit(&s, sno_bind("AA")), "B"));
+    assert(view_eq(s, "AAA"));
+
+    // case sensitive
+    s = sno_bind("PROGRAMMER");
+    before = s;
+    assert(sno_failed(sno_next_lit(&s, sno_bind("gram"))));
+    assert(view_same(s, before));
+
+    // null literal: found at once - null string at the cursor, subject unchanged
+    s = sno_bind("AB");
+    before = s;
+    m = sno_next_lit(&s, sno_null());
+    assert(sno_is_null(m) && m.begin == before.begin);
+    assert(view_same(s, before));
+
+    // empty subject: the null literal is found there, nothing else is
+    s = sno_null();
+    before = s;
+    assert(sno_is_null(sno_next_lit(&s, sno_null())));
+    assert(sno_failed(sno_next_lit(&s, sno_bind("A"))));
+    assert(view_same(s, before));
+
+    // every occurrence: NEXT LIT then LIT to step past each one
+    s = sno_bind("ABRACADABRA");
+    for (n = 0; S_(sno_next_lit(&s, sno_bind("A"))) && S_(sno_lit(&s, sno_bind("A"))); ++n)
+        ;
+    assert(n == 5);
+    assert(sno_is_null(s));                     // the last A was the last character
+    s = sno_bind("ABRACADABRA");
+    for (n = 0; S_(sno_next_lit(&s, sno_bind("ABRA"))) && S_(sno_lit(&s, sno_bind("ABRA"))); ++n)
+        ;
+    assert(n == 2);
+    s = sno_bind("AAAA");                       // consumed, so no overlaps counted
+    for (n = 0; S_(sno_next_lit(&s, sno_bind("AA"))) && S_(sno_lit(&s, sno_bind("AA"))); ++n)
+        ;
+    assert(n == 2);
+}
+
+// 1.4 NEXT LIT, continued: real uses, the view's end, NUL and high-bit bytes, failure views
+void test_next_lit_edges(void) {
+    static const char z[] = { 'A', '\0', 'B', '\0', 'C' };
+    static const char nc[] = { '\0', 'C' };
+    sno_view_t s, before, m, lit;
+
+    // P86: code before a comment
+    s = sno_bind("mov ax,bx ; copy");
+    assert(view_eq(sno_next_lit(&s, sno_bind(";")), "mov ax,bx "));
+    assert(view_eq(s, "; copy"));
+
+    // back-reference: scan for what was captured earlier
+    s = sno_bind("ab:xxab");
+    m = sno_break(&s, sno_bind(":"));           // capture "ab"
+    sno_len(&s, 1);                             // past the ':'
+    assert(view_eq(sno_next_lit(&s, m), "xx"));
+    assert(view_eq(s, "ab"));
+
+    // the view's end is the end: no peeking past it into the buffer
+    s = sno_bind("IT RUNS.");
+    m = sno_break(&s, sno_bind(" "));           // m = "IT", a slice of the buffer
+    before = m;
+    assert(sno_failed(sno_next_lit(&m, sno_bind(" "))));    // the ' ' is beyond m.end
+    assert(sno_failed(sno_next_lit(&m, sno_bind("T "))));   // straddles m.end
+    assert(view_same(m, before));
+
+    // NUL is an ordinary char in a view: a literal can hold it and be found
+    s.begin = z;
+    s.end = z + 5;                              // subject "A\0B\0C"
+    lit.begin = nc;
+    lit.end = nc + 2;                           // literal "\0C", a different buffer
+    m = sno_next_lit(&s, lit);
+    assert(m.begin == z && m.end == z + 3);     // "A\0B" skipped
+    assert(s.begin == z + 3);                   // stopped at the second NUL, not the first
+
+    // high-bit chars are ordinary
+    s = sno_bind("AB\xFF\xFE" "C");
+    assert(view_eq(sno_next_lit(&s, sno_bind("\xFF\xFE")), "AB"));
+
+    // failure views: a failure literal is a value - it just fails
+    s = sno_bind("AB");
+    before = s;
+    assert(sno_failed(sno_next_lit(&s, sno_fail())));
+    assert(view_same(s, before));
+    s = sno_fail();
+    assert(sno_failed(sno_next_lit(&s, sno_bind("A"))));
+    assert(sno_failed(sno_next_lit(&s, sno_null())));   // even the null literal
+    assert(sno_failed(s));
 }
 
 // 1.8 SUCCEEDED: the exact complement of sno_failed() - the null string succeeds
@@ -383,6 +556,14 @@ void test_fail_first1(void) {
     s = sno_bind("A");
     assert(sno_failed(sno_lit(&s, sno_fail())));            // failure literal is a value: fails
     assert(view_eq(s, "A"));                                // subject untouched
+
+    // 1.4 NEXT LIT
+    s = sno_fail();
+    assert(sno_failed(sno_next_lit(&s, sno_bind("A"))));    // failure subject
+    assert(sno_failed(sno_next_lit(&s, sno_null())));       // even the null literal
+    s = sno_bind("A");
+    assert(sno_failed(sno_next_lit(&s, sno_fail())));       // failure literal is a value: fails
+    assert(view_eq(s, "A"));                                // subject untouched
 }
 
 // Precondition violations under &ERRLIMIT (Green Book 10.2.2): with errors allowed, a
@@ -395,7 +576,7 @@ void test_sno_errors1(void) {
     sno_view_t s = sno_bind("X");
     sno_view_t f = sno_fail();
 
-    sno_err_limit(10);                          // exactly one per line below
+    sno_err_limit(12);                          // exactly one per line below
     assert(sno_err_type() == SNO_ERR_NONE);     // the limit starts a clean record
 
     // 0.1 character sets   1
@@ -418,7 +599,11 @@ void test_sno_errors1(void) {
     assert(sno_find_lit(&s, NULL) == -1         && sno_err_type() == 10);  // list NULL
     assert(sno_find_lit(&f, NULL) == -1         && sno_err_type() == 10);  // list NULL beats failure
 
-    assert(sno_err_count() == 0);               // all 10 raised, none skipped
+    // 1.4 NEXT LIT         12
+    assert(F_(sno_next_lit(NULL, sno_bind("A"))) && sno_err_type() == 10);  // subject pointer NULL
+    assert(F_(sno_next_lit(NULL, sno_fail()))    && sno_err_type() == 10);  // subject pointer NULL beats failure
+
+    assert(sno_err_count() == 0);               // all 12 raised, none skipped
     assert(view_eq(s, "X") && sno_failed(f));   // and no subject was moved
     sno_err_limit(0);                           // &ERRLIMIT = 0: errors halt again
 }
@@ -430,6 +615,9 @@ void test_core1(void) {
     test_fail_null();
     test_lit();
     test_find_lit();
+    //test_next_lit();
+    //test_next_lit_scan();
+    //test_next_lit_edges();
     test_succeeded();
 
     // error handling

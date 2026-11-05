@@ -188,9 +188,61 @@ sno_view_t sno_lit(sno_view_t* u, sno_view_t lit);
  * @note
  *  + Returns an index, not a view: a list says which, a literal says what (sno_lit()).
  *  + list is a NULL-terminated list of C strings, as sno_str_replace().
- * @see     sno_lit(), sno_str_replace()
+ * @see     sno_lit(), sno_find_next_lit(), sno_str_replace()
  */
 int sno_find_lit(sno_view_t* u, const char** list);
+
+/**
+ * 1.4 C NEXT LIT
+ * Match up to, but not including, the next occurrence of the literal view lit in the subject (u)
+ * - SNOBOL's unanchored scan, made explicit.
+ *
+ * @pre     u != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns the matched view [old cursor, occurrence); the cursor moves to the occurrence.
+ *  + lit is at the cursor: returns a null string at the cursor; the subject is unchanged.
+ *  + lit is the null string: found at once, as above.
+ * Failure: returns sno_fail(); leaves the subject unchanged.
+ *  + lit does not occur wholly before the end of the subject.
+ *  + The subject or lit is a failure view.
+ *
+ * @warning Does not consume lit: a second call matches the null string again - take it with
+ *          sno_lit() before looking for the next one.
+ * @note
+ *  + The leftmost occurrence wins; occurrences may overlap ("AA" in "AAA" is at the cursor).
+ *  + With sno_lit() it gives all three parts of a replacement statement as views:
+ *    pre = sno_next_lit(&u, lit); match = sno_lit(&u, lit); rest = u;
+ *  + Compares bytes, case and all; NUL is an ordinary character in both.
+ * @see     sno_lit(), sno_break(), sno_find_next_lit(), Green Book 2.4.1 Unanchored Mode
+ */
+sno_view_t sno_next_lit(sno_view_t* u, sno_view_t lit);
+
+/**
+ * 1.4 C FIND NEXT LIT
+ * Find which literal in a list occurs next in the subject (u), and move the cursor to it - unanchored dispatch.
+ *
+ * @pre     u != NULL and list != NULL, else error 10 ILLEGAL ARGUMENT TO PRIMITIVE FUNCTION
+ *
+ * Success: returns the index of the entry found; the cursor moves to its occurrence, which is not consumed.
+ *  + The earliest occurrence in the subject wins.
+ *  + Entries occurring at the same position: the first in the list wins, as sno_find_lit().
+ *  + An entry at the cursor: returns its index; the subject is unchanged.
+ * Failure: returns -1; leaves the subject unchanged.
+ *  + No entry occurs wholly before the end of the subject.
+ *  + The list is empty.
+ *  + The subject is a failure view.
+ *
+ * @warning Does not consume the occurrence: take it with sno_find_lit(), which returns the same index.
+ * @note
+ *  + Returns an index, not a view - as sno_find_lit(): a list says which, a literal says what.
+ *    To keep the skipped text, save the cursor first; it is [saved cursor, new cursor).
+ *  + For single-character alternatives sno_break() already does this: the char at the cursor says which.
+ *  + An entry "" occurs at once, at the cursor.
+ *  + list is a NULL-terminated list of C strings, as sno_find_lit().
+ *  + Compares bytes, case and all.
+ * @see     sno_find_lit(), sno_next_lit(), sno_break(), Green Book 2.4.1 Unanchored Mode
+ */
+int sno_find_next_lit(sno_view_t* u, const char** list);
 
 // 1.8 Flow Control
 
@@ -435,6 +487,8 @@ bool sno_ident(sno_view_t u, sno_view_t v);
  * @see     sno_ident()
  */
 bool sno_differ(sno_view_t u, sno_view_t v);
+
+// 3.4 Additional Primitive Functions
 
 /**
  * 3.4.1 SNOBOL SIZE(string)
