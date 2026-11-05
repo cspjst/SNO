@@ -68,8 +68,14 @@ sno_view_t sno_lit(sno_view_t* u, sno_view_t lit) {
 }
 
 int sno_find_lit(sno_view_t* u, const char** list) {
-     if(!u || sno_failed(*u) || !list) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return -1; }
-
+     if(!u || !list) { sno_error(SNO_ERR_ILLEGAL_ARGUMENT); return -1; }
+     if(sno_failed(*u)) return -1;
+     int i = 0;
+     while(list[i]) {
+         sno_view_t v = sno_lit(u, sno_bind(list[i]));
+         if(S_(v)) return i;
+         i++;
+     }
      return -1;
 }
 

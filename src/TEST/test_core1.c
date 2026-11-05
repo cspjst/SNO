@@ -287,7 +287,7 @@ void test_find_lit(void) {
     enum { PUSHI, PUSH, POP };                  // same order as MNEMONICS
     static const char* MNEMONICS[] = { "PUSHI", "PUSH", "POP", NULL };
     static const char* SHORT_FIRST[] = { "PUSH", "PUSHI", NULL };
-    static const char* LINES[] = { "PUSHI 5", "PUSH x", "POP", "ADD" };
+    static const char* LINES[] = { "PUSHI 5", "PUSH x", "POP", "ADD"};
     sno_view_t s, before;
     int i, pushi = 0, push = 0, pop = 0, unknown = 0;
 
